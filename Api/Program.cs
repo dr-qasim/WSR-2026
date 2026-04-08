@@ -1,9 +1,10 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using Npgsql;
 using PlantProduction.Api.Common;
+using PlantProduction.Api.Data;
 using PlantProduction.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,7 +48,8 @@ builder.Services.AddSwaggerGen(options =>
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
-builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
+builder.Services.AddDbContext<PlantProductionDbContext>(options =>
+    options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 builder.Services.AddSingleton<JwtTokenService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"]

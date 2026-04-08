@@ -1,59 +1,36 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
+using PlantProduction.Api.Data;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/recipes")]
-public sealed class RecipesController(NpgsqlDataSource dataSource) : ControllerBase
+public sealed class RecipesController(PlantProductionDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetRecipes(CancellationToken cancellationToken)
     {
-        const string sql = """
-            SELECT
-                rv.id,
-                rv.product_id,
-                p.name AS product_name,
-                rv.version_number,
-                rv.status,
-                rv.is_active,
-                rv.notes,
-                rv.created_at,
-                creator.full_name AS created_by_name,
-                rv.approved_at,
-                approver.full_name AS approved_by_name
-            FROM recipe_versions rv
-            JOIN products p ON p.id = rv.product_id
-            JOIN app_users creator ON creator.id = rv.created_by_user_id
-            LEFT JOIN app_users approver ON approver.id = rv.approved_by_user_id
-            ORDER BY p.name, rv.version_number DESC;
-            """;
-
-        var items = new List<RecipeListItem>();
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            items.Add(new RecipeListItem(
-                reader.GetInt32("id"),
-                reader.GetInt32("product_id"),
-                reader.GetString("product_name"),
-                reader.GetInt32("version_number"),
-                reader.GetInt32("status"),
-                reader.GetBoolean("is_active"),
-                reader.GetNullableString("notes"),
-                reader.GetDateTime("created_at"),
-                reader.GetString("created_by_name"),
-                reader.GetNullableDateTime("approved_at"),
-                reader.GetNullableString("approved_by_name")));
-        }
+        var items = await dbContext.RecipeVersions
+            .AsNoTracking()
+            .OrderBy(x => x.Product.Name)
+            .ThenByDescending(x => x.VersionNumber)
+            .Select(x => new RecipeListItem(
+                x.Id,
+                x.ProductId,
+                x.Product.Name,
+                x.VersionNumber,
+                x.Status,
+                x.IsActive,
+                x.Notes,
+                x.CreatedAt,
+                x.CreatedByUser.FullName,
+                x.ApprovedAt,
+                x.ApprovedByUser != null ? x.ApprovedByUser.FullName : null))
+            .ToListAsync(cancellationToken);
 
         return Ok(ApiResponse<List<RecipeListItem>>.Ok(items));
     }
@@ -61,88 +38,40 @@ public sealed class RecipesController(NpgsqlDataSource dataSource) : ControllerB
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetRecipe(int id, CancellationToken cancellationToken)
     {
-        const string headerSql = """
-            SELECT
-                rv.id,
-                rv.product_id,
-                p.name AS product_name,
-                rv.version_number,
-                rv.status,
-                rv.is_active,
-                rv.notes,
-                rv.created_at,
-                creator.full_name AS created_by_name,
-                rv.approved_at,
-                approver.full_name AS approved_by_name
-            FROM recipe_versions rv
-            JOIN products p ON p.id = rv.product_id
-            JOIN app_users creator ON creator.id = rv.created_by_user_id
-            LEFT JOIN app_users approver ON approver.id = rv.approved_by_user_id
-            WHERE rv.id = @id
-            LIMIT 1;
-            """;
-
-        const string componentsSql = """
-            SELECT
-                rc.id,
-                rc.raw_material_id,
-                rm.name AS raw_material_name,
-                rc.percentage,
-                rc.load_order,
-                rc.allowed_deviation_percent
-            FROM recipe_components rc
-            JOIN raw_materials rm ON rm.id = rc.raw_material_id
-            WHERE rc.recipe_version_id = @id
-            ORDER BY rc.load_order;
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-
-        RecipeHeader? header = null;
-        await using (var headerCommand = new NpgsqlCommand(headerSql, connection))
-        {
-            headerCommand.Parameters.AddWithValue("id", id);
-            await using var reader = await headerCommand.ExecuteReaderAsync(cancellationToken);
-
-            if (await reader.ReadAsync(cancellationToken))
-            {
-                header = new RecipeHeader(
-                    reader.GetInt32("id"),
-                    reader.GetInt32("product_id"),
-                    reader.GetString("product_name"),
-                    reader.GetInt32("version_number"),
-                    reader.GetInt32("status"),
-                    reader.GetBoolean("is_active"),
-                    reader.GetNullableString("notes"),
-                    reader.GetDateTime("created_at"),
-                    reader.GetString("created_by_name"),
-                    reader.GetNullableDateTime("approved_at"),
-                    reader.GetNullableString("approved_by_name"));
-            }
-        }
+        var header = await dbContext.RecipeVersions
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new RecipeHeader(
+                x.Id,
+                x.ProductId,
+                x.Product.Name,
+                x.VersionNumber,
+                x.Status,
+                x.IsActive,
+                x.Notes,
+                x.CreatedAt,
+                x.CreatedByUser.FullName,
+                x.ApprovedAt,
+                x.ApprovedByUser != null ? x.ApprovedByUser.FullName : null))
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (header is null)
         {
             return NotFound(ApiResponse.Fail("Рецептура не найдена."));
         }
 
-        var components = new List<RecipeComponentItem>();
-        await using (var componentsCommand = new NpgsqlCommand(componentsSql, connection))
-        {
-            componentsCommand.Parameters.AddWithValue("id", id);
-            await using var reader = await componentsCommand.ExecuteReaderAsync(cancellationToken);
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                components.Add(new RecipeComponentItem(
-                    reader.GetInt32("id"),
-                    reader.GetInt32("raw_material_id"),
-                    reader.GetString("raw_material_name"),
-                    reader.GetDecimal("percentage"),
-                    reader.GetInt32("load_order"),
-                    reader.GetDecimal("allowed_deviation_percent")));
-            }
-        }
+        var components = await dbContext.RecipeComponents
+            .AsNoTracking()
+            .Where(x => x.RecipeVersionId == id)
+            .OrderBy(x => x.LoadOrder)
+            .Select(x => new RecipeComponentItem(
+                x.Id,
+                x.RawMaterialId,
+                x.RawMaterial.Name,
+                x.Percentage,
+                x.LoadOrder,
+                x.AllowedDeviationPercent))
+            .ToListAsync(cancellationToken);
 
         return Ok(ApiResponse<RecipeDetail>.Ok(new RecipeDetail(header, components)));
     }
@@ -160,71 +89,51 @@ public sealed class RecipesController(NpgsqlDataSource dataSource) : ControllerB
             return BadRequest(ApiResponse.Fail("Нужно добавить хотя бы один компонент рецептуры."));
         }
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            const string nextVersionSql = """
-                SELECT COALESCE(MAX(version_number), 0) + 1
-                FROM recipe_versions
-                WHERE product_id = @productId;
-                """;
+            var nextVersion = (await dbContext.RecipeVersions
+                .Where(x => x.ProductId == request.ProductId)
+                .MaxAsync(x => (int?)x.VersionNumber, cancellationToken) ?? 0) + 1;
 
-            int nextVersion;
-            await using (var nextVersionCommand = new NpgsqlCommand(nextVersionSql, connection, transaction))
+            var recipe = new RecipeVersion
             {
-                nextVersionCommand.Parameters.AddWithValue("productId", request.ProductId);
-                nextVersion = Convert.ToInt32(await nextVersionCommand.ExecuteScalarAsync(cancellationToken));
-            }
+                ProductId = request.ProductId,
+                VersionNumber = nextVersion,
+                Status = 1,
+                IsActive = false,
+                Notes = request.Notes,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = request.CreatedByUserId
+            };
 
-            const string insertRecipeSql = """
-                INSERT INTO recipe_versions
-                    (product_id, version_number, status, is_active, notes, created_at, created_by_user_id)
-                VALUES
-                    (@productId, @versionNumber, 1, FALSE, @notes, @createdAt, @createdByUserId)
-                RETURNING id;
-                """;
-
-            int recipeId;
-            await using (var insertRecipeCommand = new NpgsqlCommand(insertRecipeSql, connection, transaction))
-            {
-                insertRecipeCommand.Parameters.AddWithValue("productId", request.ProductId);
-                insertRecipeCommand.Parameters.AddWithValue("versionNumber", nextVersion);
-                insertRecipeCommand.Parameters.AddWithValue("notes", (object?)request.Notes ?? DBNull.Value);
-                insertRecipeCommand.Parameters.AddWithValue("createdAt", DateTime.UtcNow);
-                insertRecipeCommand.Parameters.AddWithValue("createdByUserId", request.CreatedByUserId);
-                recipeId = Convert.ToInt32(await insertRecipeCommand.ExecuteScalarAsync(cancellationToken));
-            }
-
-            const string insertComponentSql = """
-                INSERT INTO recipe_components
-                    (recipe_version_id, raw_material_id, percentage, load_order, allowed_deviation_percent)
-                VALUES
-                    (@recipeVersionId, @rawMaterialId, @percentage, @loadOrder, @allowedDeviationPercent);
-                """;
+            dbContext.RecipeVersions.Add(recipe);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             foreach (var component in request.Components)
             {
-                await using var insertComponentCommand = new NpgsqlCommand(insertComponentSql, connection, transaction);
-                insertComponentCommand.Parameters.AddWithValue("recipeVersionId", recipeId);
-                insertComponentCommand.Parameters.AddWithValue("rawMaterialId", component.RawMaterialId);
-                insertComponentCommand.Parameters.AddWithValue("percentage", component.Percentage);
-                insertComponentCommand.Parameters.AddWithValue("loadOrder", component.LoadOrder);
-                insertComponentCommand.Parameters.AddWithValue("allowedDeviationPercent", component.AllowedDeviationPercent);
-                await insertComponentCommand.ExecuteNonQueryAsync(cancellationToken);
+                dbContext.RecipeComponents.Add(new RecipeComponent
+                {
+                    RecipeVersionId = recipe.Id,
+                    RawMaterialId = component.RawMaterialId,
+                    Percentage = component.Percentage,
+                    LoadOrder = component.LoadOrder,
+                    AllowedDeviationPercent = component.AllowedDeviationPercent
+                });
             }
 
+            await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
             return Ok(ApiResponse<CreateRecipeResponse>.Ok(
-                new CreateRecipeResponse(recipeId, request.ProductId, nextVersion),
+                new CreateRecipeResponse(recipe.Id, request.ProductId, nextVersion),
                 "Черновик рецептуры создан."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
             await transaction.RollbackAsync(cancellationToken);
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
@@ -236,88 +145,54 @@ public sealed class RecipesController(NpgsqlDataSource dataSource) : ControllerB
             return BadRequest(ApiResponse.Fail("Нужно указать пользователя, который утверждает рецептуру."));
         }
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            const string productSql = """
-                SELECT product_id
-                FROM recipe_versions
-                WHERE id = @id
-                LIMIT 1;
-                """;
+            var recipe = await dbContext.RecipeVersions
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-            int? productId;
-            await using (var productCommand = new NpgsqlCommand(productSql, connection, transaction))
-            {
-                productCommand.Parameters.AddWithValue("id", id);
-                var value = await productCommand.ExecuteScalarAsync(cancellationToken);
-                productId = value is null ? null : Convert.ToInt32(value);
-            }
-
-            if (productId is null)
+            if (recipe is null)
             {
                 await transaction.RollbackAsync(cancellationToken);
                 return NotFound(ApiResponse.Fail("Рецептура не найдена."));
             }
 
-            const string deactivateSql = """
-                UPDATE recipe_versions
-                SET is_active = FALSE
-                WHERE product_id = @productId
-                  AND id <> @id
-                  AND is_active = TRUE;
-                """;
+            await dbContext.RecipeVersions
+                .Where(x => x.ProductId == recipe.ProductId && x.Id != id && x.IsActive)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.IsActive, false), cancellationToken);
 
-            await using (var deactivateCommand = new NpgsqlCommand(deactivateSql, connection, transaction))
+            recipe.Status = 3;
+            recipe.IsActive = true;
+            recipe.ApprovedAt = DateTime.UtcNow;
+            recipe.ApprovedByUserId = request.ApprovedByUserId;
+
+            dbContext.StatusHistories.Add(new StatusHistory
             {
-                deactivateCommand.Parameters.AddWithValue("productId", productId.Value);
-                deactivateCommand.Parameters.AddWithValue("id", id);
-                await deactivateCommand.ExecuteNonQueryAsync(cancellationToken);
-            }
+                EntityType = "RecipeVersion",
+                EntityId = id,
+                PreviousStatus = "Draft",
+                NewStatus = "Approved",
+                ChangedAt = DateTime.UtcNow,
+                ChangedByUserId = request.ApprovedByUserId,
+                Comment = request.Comment ?? "Рецептура утверждена через API."
+            });
 
-            const string approveSql = """
-                UPDATE recipe_versions
-                SET status = 3,
-                    is_active = TRUE,
-                    approved_at = @approvedAt,
-                    approved_by_user_id = @approvedByUserId
-                WHERE id = @id;
-                """;
-
-            await using (var approveCommand = new NpgsqlCommand(approveSql, connection, transaction))
-            {
-                approveCommand.Parameters.AddWithValue("approvedAt", DateTime.UtcNow);
-                approveCommand.Parameters.AddWithValue("approvedByUserId", request.ApprovedByUserId);
-                approveCommand.Parameters.AddWithValue("id", id);
-                await approveCommand.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            const string historySql = """
-                INSERT INTO status_histories
-                    (entity_type, entity_id, previous_status, new_status, changed_at, changed_by_user_id, comment)
-                VALUES
-                    ('RecipeVersion', @entityId, 'Draft', 'Approved', @changedAt, @changedByUserId, @comment);
-                """;
-
-            await using (var historyCommand = new NpgsqlCommand(historySql, connection, transaction))
-            {
-                historyCommand.Parameters.AddWithValue("entityId", id);
-                historyCommand.Parameters.AddWithValue("changedAt", DateTime.UtcNow);
-                historyCommand.Parameters.AddWithValue("changedByUserId", request.ApprovedByUserId);
-                historyCommand.Parameters.AddWithValue("comment", (object?)request.Comment ?? "Рецептура утверждена через API.");
-                await historyCommand.ExecuteNonQueryAsync(cancellationToken);
-            }
-
+            await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return Ok(ApiResponse.Ok("Рецептура утверждена."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
             await transaction.RollbackAsync(cancellationToken);
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
+    }
+
+    private static string GetDbErrorMessage(DbUpdateException exception)
+    {
+        return exception.InnerException?.Message ?? exception.Message;
     }
 }
 

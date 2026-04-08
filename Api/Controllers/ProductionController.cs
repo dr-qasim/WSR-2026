@@ -1,59 +1,36 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
+using PlantProduction.Api.Data;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/production")]
-public sealed class ProductionController(NpgsqlDataSource dataSource) : ControllerBase
+public sealed class ProductionController(PlantProductionDbContext dbContext) : ControllerBase
 {
     [HttpGet("orders")]
     public async Task<IActionResult> GetOrders(CancellationToken cancellationToken)
     {
-        const string sql = """
-            SELECT
-                po.id,
-                po.order_number,
-                po.product_id,
-                p.name AS product_name,
-                po.production_line_id,
-                pl.name AS production_line_name,
-                po.planned_quantity,
-                po.planned_start_at,
-                po.status,
-                po.created_at,
-                u.full_name AS created_by_name
-            FROM production_orders po
-            JOIN products p ON p.id = po.product_id
-            JOIN production_lines pl ON pl.id = po.production_line_id
-            JOIN app_users u ON u.id = po.created_by_user_id
-            ORDER BY po.created_at DESC, po.id DESC;
-            """;
-
-        var items = new List<ProductionOrderItem>();
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            items.Add(new ProductionOrderItem(
-                reader.GetInt32("id"),
-                reader.GetString("order_number"),
-                reader.GetInt32("product_id"),
-                reader.GetString("product_name"),
-                reader.GetInt32("production_line_id"),
-                reader.GetString("production_line_name"),
-                reader.GetDecimal("planned_quantity"),
-                reader.GetNullableDateTime("planned_start_at"),
-                reader.GetInt32("status"),
-                reader.GetDateTime("created_at"),
-                reader.GetString("created_by_name")));
-        }
+        var items = await dbContext.ProductionOrders
+            .AsNoTracking()
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new ProductionOrderItem(
+                x.Id,
+                x.OrderNumber,
+                x.ProductId,
+                x.Product.Name,
+                x.ProductionLineId,
+                x.ProductionLine.Name,
+                x.PlannedQuantity,
+                x.PlannedStartAt,
+                x.Status,
+                x.CreatedAt,
+                x.CreatedByUser.FullName))
+            .ToListAsync(cancellationToken);
 
         return Ok(ApiResponse<List<ProductionOrderItem>>.Ok(items));
     }
@@ -66,89 +43,57 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
             return BadRequest(ApiResponse.Fail("Некорректные данные производственного заказа."));
         }
 
-        const string sql = """
-            INSERT INTO production_orders
-                (order_number, product_id, production_line_id, planned_quantity, planned_start_at, status, created_at, created_by_user_id)
-            VALUES
-                (@orderNumber, @productId, @productionLineId, @plannedQuantity, @plannedStartAt, 1, @createdAt, @createdByUserId)
-            RETURNING id;
-            """;
-
         var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("orderNumber", orderNumber);
-        command.Parameters.AddWithValue("productId", request.ProductId);
-        command.Parameters.AddWithValue("productionLineId", request.ProductionLineId);
-        command.Parameters.AddWithValue("plannedQuantity", request.PlannedQuantity);
-        command.Parameters.AddWithValue("plannedStartAt", (object?)request.PlannedStartAt ?? DBNull.Value);
-        command.Parameters.AddWithValue("createdAt", DateTime.UtcNow);
-        command.Parameters.AddWithValue("createdByUserId", request.CreatedByUserId);
 
         try
         {
-            var id = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+            var order = new ProductionOrder
+            {
+                OrderNumber = orderNumber,
+                ProductId = request.ProductId,
+                ProductionLineId = request.ProductionLineId,
+                PlannedQuantity = request.PlannedQuantity,
+                PlannedStartAt = request.PlannedStartAt,
+                Status = 1,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = request.CreatedByUserId
+            };
+
+            dbContext.ProductionOrders.Add(order);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
             return Ok(ApiResponse<CreateProductionOrderResponse>.Ok(
-                new CreateProductionOrderResponse(id, orderNumber),
+                new CreateProductionOrderResponse(order.Id, orderNumber),
                 "Производственный заказ создан."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
     [HttpGet("batches")]
     public async Task<IActionResult> GetBatches(CancellationToken cancellationToken)
     {
-        const string sql = """
-            SELECT
-                pb.id,
-                pb.batch_number,
-                pb.production_order_id,
-                po.order_number,
-                pb.product_id,
-                p.name AS product_name,
-                pb.production_line_id,
-                pl.name AS production_line_name,
-                pb.recipe_version_id,
-                pb.technology_card_id,
-                pb.planned_quantity,
-                pb.status,
-                pb.started_at,
-                pb.completed_at
-            FROM production_batches pb
-            JOIN products p ON p.id = pb.product_id
-            JOIN production_lines pl ON pl.id = pb.production_line_id
-            LEFT JOIN production_orders po ON po.id = pb.production_order_id
-            ORDER BY pb.id DESC;
-            """;
-
-        var items = new List<ProductionBatchItem>();
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            items.Add(new ProductionBatchItem(
-                reader.GetInt32("id"),
-                reader.GetString("batch_number"),
-                reader.GetNullableInt32("production_order_id"),
-                reader.GetNullableString("order_number"),
-                reader.GetInt32("product_id"),
-                reader.GetString("product_name"),
-                reader.GetInt32("production_line_id"),
-                reader.GetString("production_line_name"),
-                reader.GetInt32("recipe_version_id"),
-                reader.GetInt32("technology_card_id"),
-                reader.GetDecimal("planned_quantity"),
-                reader.GetInt32("status"),
-                reader.GetNullableDateTime("started_at"),
-                reader.GetNullableDateTime("completed_at")));
-        }
+        var items = await dbContext.ProductionBatches
+            .AsNoTracking()
+            .OrderByDescending(x => x.Id)
+            .Select(x => new ProductionBatchItem(
+                x.Id,
+                x.BatchNumber,
+                x.ProductionOrderId,
+                x.ProductionOrder != null ? x.ProductionOrder.OrderNumber : null,
+                x.ProductId,
+                x.Product.Name,
+                x.ProductionLineId,
+                x.ProductionLine.Name,
+                x.RecipeVersionId,
+                x.TechnologyCardId,
+                x.PlannedQuantity,
+                x.Status,
+                x.StartedAt,
+                x.CompletedAt))
+            .ToListAsync(cancellationToken);
 
         return Ok(ApiResponse<List<ProductionBatchItem>>.Ok(items));
     }
@@ -162,141 +107,99 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
             return BadRequest(ApiResponse.Fail("Некорректные данные производственной партии."));
         }
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
             var batchNumber = $"BATCH-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
 
-            const string insertBatchSql = """
-                INSERT INTO production_batches
-                    (batch_number, production_order_id, product_id, recipe_version_id, technology_card_id, production_line_id,
-                     extruder_program_id, planned_quantity, status)
-                VALUES
-                    (@batchNumber, @productionOrderId, @productId, @recipeVersionId, @technologyCardId, @productionLineId,
-                     @extruderProgramId, @plannedQuantity, 1)
-                RETURNING id;
-                """;
-
-            int batchId;
-            await using (var insertBatchCommand = new NpgsqlCommand(insertBatchSql, connection, transaction))
+            var batch = new ProductionBatch
             {
-                insertBatchCommand.Parameters.AddWithValue("batchNumber", batchNumber);
-                insertBatchCommand.Parameters.AddWithValue("productionOrderId", (object?)request.ProductionOrderId ?? DBNull.Value);
-                insertBatchCommand.Parameters.AddWithValue("productId", request.ProductId);
-                insertBatchCommand.Parameters.AddWithValue("recipeVersionId", request.RecipeVersionId);
-                insertBatchCommand.Parameters.AddWithValue("technologyCardId", request.TechnologyCardId);
-                insertBatchCommand.Parameters.AddWithValue("productionLineId", request.ProductionLineId);
-                insertBatchCommand.Parameters.AddWithValue("extruderProgramId", (object?)request.ExtruderProgramId ?? DBNull.Value);
-                insertBatchCommand.Parameters.AddWithValue("plannedQuantity", request.PlannedQuantity);
-                batchId = Convert.ToInt32(await insertBatchCommand.ExecuteScalarAsync(cancellationToken));
-            }
+                BatchNumber = batchNumber,
+                ProductionOrderId = request.ProductionOrderId,
+                ProductId = request.ProductId,
+                RecipeVersionId = request.RecipeVersionId,
+                TechnologyCardId = request.TechnologyCardId,
+                ProductionLineId = request.ProductionLineId,
+                ExtruderProgramId = request.ExtruderProgramId,
+                PlannedQuantity = request.PlannedQuantity,
+                Status = 1
+            };
 
-            const string insertConsumptionSql = """
-                INSERT INTO batch_raw_material_consumptions
-                    (production_batch_id, raw_material_lot_id, quantity_used)
-                VALUES
-                    (@productionBatchId, @rawMaterialLotId, @quantityUsed);
-                """;
-
-            const string updateLotSql = """
-                UPDATE raw_material_lots
-                SET quantity_available = quantity_available - @quantityUsed
-                WHERE id = @rawMaterialLotId;
-                """;
+            dbContext.ProductionBatches.Add(batch);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             foreach (var consumption in request.Consumptions)
             {
-                await using (var insertConsumptionCommand = new NpgsqlCommand(insertConsumptionSql, connection, transaction))
+                dbContext.BatchRawMaterialConsumptions.Add(new BatchRawMaterialConsumption
                 {
-                    insertConsumptionCommand.Parameters.AddWithValue("productionBatchId", batchId);
-                    insertConsumptionCommand.Parameters.AddWithValue("rawMaterialLotId", consumption.RawMaterialLotId);
-                    insertConsumptionCommand.Parameters.AddWithValue("quantityUsed", consumption.QuantityUsed);
-                    await insertConsumptionCommand.ExecuteNonQueryAsync(cancellationToken);
+                    ProductionBatchId = batch.Id,
+                    RawMaterialLotId = consumption.RawMaterialLotId,
+                    QuantityUsed = consumption.QuantityUsed
+                });
+
+                var lot = await dbContext.RawMaterialLots
+                    .FirstOrDefaultAsync(x => x.Id == consumption.RawMaterialLotId, cancellationToken);
+
+                if (lot is null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return BadRequest(ApiResponse.Fail("Партия сырья не найдена."));
                 }
 
-                await using (var updateLotCommand = new NpgsqlCommand(updateLotSql, connection, transaction))
-                {
-                    updateLotCommand.Parameters.AddWithValue("quantityUsed", consumption.QuantityUsed);
-                    updateLotCommand.Parameters.AddWithValue("rawMaterialLotId", consumption.RawMaterialLotId);
-                    await updateLotCommand.ExecuteNonQueryAsync(cancellationToken);
-                }
+                lot.QuantityAvailable -= consumption.QuantityUsed;
             }
 
-            const string insertStepRunsSql = """
-                INSERT INTO batch_technology_step_runs
-                    (production_batch_id, technology_step_id, status)
-                SELECT
-                    @productionBatchId,
-                    id,
-                    1
-                FROM technology_steps
-                WHERE technology_card_id = @technologyCardId
-                ORDER BY step_order;
-                """;
+            var stepIds = await dbContext.TechnologySteps
+                .AsNoTracking()
+                .Where(x => x.TechnologyCardId == request.TechnologyCardId)
+                .OrderBy(x => x.StepOrder)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
 
-            await using (var insertStepRunsCommand = new NpgsqlCommand(insertStepRunsSql, connection, transaction))
+            foreach (var stepId in stepIds)
             {
-                insertStepRunsCommand.Parameters.AddWithValue("productionBatchId", batchId);
-                insertStepRunsCommand.Parameters.AddWithValue("technologyCardId", request.TechnologyCardId);
-                await insertStepRunsCommand.ExecuteNonQueryAsync(cancellationToken);
+                dbContext.BatchTechnologyStepRuns.Add(new BatchTechnologyStepRun
+                {
+                    ProductionBatchId = batch.Id,
+                    TechnologyStepId = stepId,
+                    Status = 1
+                });
             }
 
+            await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
             return Ok(ApiResponse<CreateProductionBatchResponse>.Ok(
-                new CreateProductionBatchResponse(batchId, batchNumber),
+                new CreateProductionBatchResponse(batch.Id, batchNumber),
                 "Производственная партия создана."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
             await transaction.RollbackAsync(cancellationToken);
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
     [HttpGet("batches/{id:int}/steps")]
     public async Task<IActionResult> GetBatchSteps(int id, CancellationToken cancellationToken)
     {
-        const string sql = """
-            SELECT
-                run.id,
-                run.production_batch_id,
-                run.technology_step_id,
-                step.step_order,
-                step.step_type,
-                step.title,
-                run.status,
-                run.started_at,
-                run.completed_at,
-                run.comment
-            FROM batch_technology_step_runs run
-            JOIN technology_steps step ON step.id = run.technology_step_id
-            WHERE run.production_batch_id = @batchId
-            ORDER BY step.step_order;
-            """;
-
-        var items = new List<BatchStepRunItem>();
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("batchId", id);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            items.Add(new BatchStepRunItem(
-                reader.GetInt32("id"),
-                reader.GetInt32("production_batch_id"),
-                reader.GetInt32("technology_step_id"),
-                reader.GetInt32("step_order"),
-                reader.GetInt32("step_type"),
-                reader.GetString("title"),
-                reader.GetInt32("status"),
-                reader.GetNullableDateTime("started_at"),
-                reader.GetNullableDateTime("completed_at"),
-                reader.GetNullableString("comment")));
-        }
+        var items = await dbContext.BatchTechnologyStepRuns
+            .AsNoTracking()
+            .Where(x => x.ProductionBatchId == id)
+            .OrderBy(x => x.TechnologyStep.StepOrder)
+            .Select(x => new BatchStepRunItem(
+                x.Id,
+                x.ProductionBatchId,
+                x.TechnologyStepId,
+                x.TechnologyStep.StepOrder,
+                x.TechnologyStep.StepType,
+                x.TechnologyStep.Title,
+                x.Status,
+                x.StartedAt,
+                x.CompletedAt,
+                x.Comment))
+            .ToListAsync(cancellationToken);
 
         return Ok(ApiResponse<List<BatchStepRunItem>>.Ok(items));
     }
@@ -304,23 +207,17 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
     [HttpPost("batches/{id:int}/start")]
     public async Task<IActionResult> StartBatch(int id, CancellationToken cancellationToken)
     {
-        const string sql = """
-            UPDATE production_batches
-            SET status = 2,
-                started_at = COALESCE(started_at, @startedAt)
-            WHERE id = @id;
-            """;
+        var batch = await dbContext.ProductionBatches
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("startedAt", DateTime.UtcNow);
-        command.Parameters.AddWithValue("id", id);
-        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken);
-
-        if (affectedRows == 0)
+        if (batch is null)
         {
             return NotFound(ApiResponse.Fail("Партия не найдена."));
         }
+
+        batch.Status = 2;
+        batch.StartedAt ??= DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(ApiResponse.Ok("Партия переведена в работу."));
     }
@@ -328,31 +225,24 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
     [HttpPost("batches/{id:int}/complete")]
     public async Task<IActionResult> CompleteBatch(int id, CancellationToken cancellationToken)
     {
-        const string sql = """
-            UPDATE production_batches
-            SET status = 6,
-                completed_at = @completedAt
-            WHERE id = @id;
-            """;
+        var batch = await dbContext.ProductionBatches
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("completedAt", DateTime.UtcNow);
-        command.Parameters.AddWithValue("id", id);
+        if (batch is null)
+        {
+            return NotFound(ApiResponse.Fail("Партия не найдена."));
+        }
 
         try
         {
-            var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken);
-            if (affectedRows == 0)
-            {
-                return NotFound(ApiResponse.Fail("Партия не найдена."));
-            }
-
+            batch.Status = 6;
+            batch.CompletedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
             return Ok(ApiResponse.Ok("Партия завершена."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
@@ -364,35 +254,26 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
             return BadRequest(ApiResponse.Fail("Нужно указать пользователя, который начал шаг."));
         }
 
-        const string sql = """
-            UPDATE batch_technology_step_runs
-            SET status = 2,
-                started_at = COALESCE(started_at, @startedAt),
-                started_by_user_id = @startedByUserId,
-                comment = COALESCE(@comment, comment)
-            WHERE id = @id;
-            """;
+        var stepRun = await dbContext.BatchTechnologyStepRuns
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("startedAt", DateTime.UtcNow);
-        command.Parameters.AddWithValue("startedByUserId", request.StartedByUserId);
-        command.Parameters.AddWithValue("comment", (object?)request.Comment ?? DBNull.Value);
-        command.Parameters.AddWithValue("id", id);
+        if (stepRun is null)
+        {
+            return NotFound(ApiResponse.Fail("Шаг партии не найден."));
+        }
 
         try
         {
-            var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken);
-            if (affectedRows == 0)
-            {
-                return NotFound(ApiResponse.Fail("Шаг партии не найден."));
-            }
-
+            stepRun.Status = 2;
+            stepRun.StartedAt ??= DateTime.UtcNow;
+            stepRun.StartedByUserId = request.StartedByUserId;
+            stepRun.Comment = request.Comment ?? stepRun.Comment;
+            await dbContext.SaveChangesAsync(cancellationToken);
             return Ok(ApiResponse.Ok("Шаг партии начат."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
@@ -404,35 +285,26 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
             return BadRequest(ApiResponse.Fail("Нужно указать пользователя, который завершил шаг."));
         }
 
-        const string sql = """
-            UPDATE batch_technology_step_runs
-            SET status = 3,
-                completed_at = @completedAt,
-                completed_by_user_id = @completedByUserId,
-                comment = COALESCE(@comment, comment)
-            WHERE id = @id;
-            """;
+        var stepRun = await dbContext.BatchTechnologyStepRuns
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("completedAt", DateTime.UtcNow);
-        command.Parameters.AddWithValue("completedByUserId", request.CompletedByUserId);
-        command.Parameters.AddWithValue("comment", (object?)request.Comment ?? DBNull.Value);
-        command.Parameters.AddWithValue("id", id);
+        if (stepRun is null)
+        {
+            return NotFound(ApiResponse.Fail("Шаг партии не найден."));
+        }
 
         try
         {
-            var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken);
-            if (affectedRows == 0)
-            {
-                return NotFound(ApiResponse.Fail("Шаг партии не найден."));
-            }
-
+            stepRun.Status = 3;
+            stepRun.CompletedAt = DateTime.UtcNow;
+            stepRun.CompletedByUserId = request.CompletedByUserId;
+            stepRun.Comment = request.Comment ?? stepRun.Comment;
+            await dbContext.SaveChangesAsync(cancellationToken);
             return Ok(ApiResponse.Ok("Шаг партии завершен."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
@@ -450,37 +322,17 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
             return BadRequest(ApiResponse.Fail("Нужно передать ровно одно фактическое значение."));
         }
 
-        const string parameterSql = """
-            SELECT
-                value_type,
-                target_numeric_value,
-                min_numeric_value,
-                max_numeric_value,
-                target_text_value,
-                target_boolean_value
-            FROM technology_step_parameters
-            WHERE id = @id
-            LIMIT 1;
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-
-        ParameterMetadata? metadata = null;
-        await using (var parameterCommand = new NpgsqlCommand(parameterSql, connection))
-        {
-            parameterCommand.Parameters.AddWithValue("id", request.TechnologyStepParameterId);
-            await using var reader = await parameterCommand.ExecuteReaderAsync(cancellationToken);
-            if (await reader.ReadAsync(cancellationToken))
-            {
-                metadata = new ParameterMetadata(
-                    reader.GetInt32("value_type"),
-                    reader.GetNullableDecimal("target_numeric_value"),
-                    reader.GetNullableDecimal("min_numeric_value"),
-                    reader.GetNullableDecimal("max_numeric_value"),
-                    reader.GetNullableString("target_text_value"),
-                    reader.GetNullableBoolean("target_boolean_value"));
-            }
-        }
+        var metadata = await dbContext.TechnologyStepParameters
+            .AsNoTracking()
+            .Where(x => x.Id == request.TechnologyStepParameterId)
+            .Select(x => new ParameterMetadata(
+                x.ValueType,
+                x.TargetNumericValue,
+                x.MinNumericValue,
+                x.MaxNumericValue,
+                x.TargetTextValue,
+                x.TargetBooleanValue))
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (metadata is null)
         {
@@ -489,37 +341,30 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
 
         var isWithinTolerance = CalculateMeasurementResult(metadata, request);
 
-        const string insertSql = """
-            INSERT INTO batch_step_measured_values
-                (batch_technology_step_run_id, technology_step_parameter_id, actual_numeric_value, actual_text_value,
-                 actual_boolean_value, is_within_tolerance, recorded_at, comment)
-            VALUES
-                (@batchTechnologyStepRunId, @technologyStepParameterId, @actualNumericValue, @actualTextValue,
-                 @actualBooleanValue, @isWithinTolerance, @recordedAt, @comment)
-            RETURNING id;
-            """;
-
         try
         {
-            await using var command = new NpgsqlCommand(insertSql, connection);
-            command.Parameters.AddWithValue("batchTechnologyStepRunId", id);
-            command.Parameters.AddWithValue("technologyStepParameterId", request.TechnologyStepParameterId);
-            command.Parameters.AddWithValue("actualNumericValue", (object?)request.ActualNumericValue ?? DBNull.Value);
-            command.Parameters.AddWithValue("actualTextValue", (object?)request.ActualTextValue ?? DBNull.Value);
-            command.Parameters.AddWithValue("actualBooleanValue", (object?)request.ActualBooleanValue ?? DBNull.Value);
-            command.Parameters.AddWithValue("isWithinTolerance", isWithinTolerance);
-            command.Parameters.AddWithValue("recordedAt", DateTime.UtcNow);
-            command.Parameters.AddWithValue("comment", (object?)request.Comment ?? DBNull.Value);
+            var measurement = new BatchStepMeasuredValue
+            {
+                BatchTechnologyStepRunId = id,
+                TechnologyStepParameterId = request.TechnologyStepParameterId,
+                ActualNumericValue = request.ActualNumericValue,
+                ActualTextValue = request.ActualTextValue,
+                ActualBooleanValue = request.ActualBooleanValue,
+                IsWithinTolerance = isWithinTolerance,
+                RecordedAt = DateTime.UtcNow,
+                Comment = request.Comment
+            };
 
-            var measurementId = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+            dbContext.BatchStepMeasuredValues.Add(measurement);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             return Ok(ApiResponse<MeasurementResponse>.Ok(
-                new MeasurementResponse(measurementId, isWithinTolerance),
+                new MeasurementResponse(measurement.Id, isWithinTolerance),
                 "Фактическое значение записано."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
@@ -531,39 +376,32 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
             return BadRequest(ApiResponse.Fail("Некорректные данные отклонения."));
         }
 
-        const string sql = """
-            INSERT INTO process_deviations
-                (production_batch_id, batch_technology_step_run_id, title, parameter_name, planned_value, actual_value,
-                 severity, details, created_at, reported_by_user_id)
-            VALUES
-                (@productionBatchId, @batchTechnologyStepRunId, @title, @parameterName, @plannedValue, @actualValue,
-                 @severity, @details, @createdAt, @reportedByUserId)
-            RETURNING id;
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("productionBatchId", request.ProductionBatchId);
-        command.Parameters.AddWithValue("batchTechnologyStepRunId", (object?)request.BatchTechnologyStepRunId ?? DBNull.Value);
-        command.Parameters.AddWithValue("title", request.Title.Trim());
-        command.Parameters.AddWithValue("parameterName", (object?)request.ParameterName ?? DBNull.Value);
-        command.Parameters.AddWithValue("plannedValue", (object?)request.PlannedValue ?? DBNull.Value);
-        command.Parameters.AddWithValue("actualValue", (object?)request.ActualValue ?? DBNull.Value);
-        command.Parameters.AddWithValue("severity", request.Severity);
-        command.Parameters.AddWithValue("details", (object?)request.Details ?? DBNull.Value);
-        command.Parameters.AddWithValue("createdAt", DateTime.UtcNow);
-        command.Parameters.AddWithValue("reportedByUserId", (object?)request.ReportedByUserId ?? DBNull.Value);
-
         try
         {
-            var id = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+            var deviation = new ProcessDeviation
+            {
+                ProductionBatchId = request.ProductionBatchId,
+                BatchTechnologyStepRunId = request.BatchTechnologyStepRunId,
+                Title = request.Title.Trim(),
+                ParameterName = request.ParameterName,
+                PlannedValue = request.PlannedValue,
+                ActualValue = request.ActualValue,
+                Severity = request.Severity,
+                Details = request.Details,
+                CreatedAt = DateTime.UtcNow,
+                ReportedByUserId = request.ReportedByUserId
+            };
+
+            dbContext.ProcessDeviations.Add(deviation);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
             return Ok(ApiResponse<DeviationResponse>.Ok(
-                new DeviationResponse(id),
+                new DeviationResponse(deviation.Id),
                 "Отклонение зарегистрировано."));
         }
-        catch (PostgresException exception)
+        catch (DbUpdateException exception)
         {
-            return BadRequest(ApiResponse.Fail(exception.MessageText));
+            return BadRequest(ApiResponse.Fail(GetDbErrorMessage(exception)));
         }
     }
 
@@ -613,6 +451,11 @@ public sealed class ProductionController(NpgsqlDataSource dataSource) : Controll
         }
 
         return true;
+    }
+
+    private static string GetDbErrorMessage(DbUpdateException exception)
+    {
+        return exception.InnerException?.Message ?? exception.Message;
     }
 
     private sealed record ParameterMetadata(

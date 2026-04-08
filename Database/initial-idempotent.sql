@@ -2093,12 +2093,12 @@ BEGIN
     AS $$
     DECLARE
         lot_status integer;
-        quantity_received numeric(18,3);
+        lot_quantity_received numeric(18,3);
         total_used numeric(18,3);
     BEGIN
         SELECT status, quantity_received
-        INTO lot_status, quantity_received
-        FROM raw_material_lots
+        INTO lot_status, lot_quantity_received
+        FROM raw_material_lots lot
         WHERE id = NEW.raw_material_lot_id;
 
         IF lot_status <> 2 THEN
@@ -2126,7 +2126,7 @@ BEGIN
 
         total_used := total_used + NEW.quantity_used;
 
-        IF total_used > quantity_received THEN
+        IF total_used > lot_quantity_received THEN
             RAISE EXCEPTION
                 'Total consumption for raw material lot % exceeds received quantity',
                 NEW.raw_material_lot_id;
@@ -2647,4 +2647,3 @@ BEGIN
     END IF;
 END $EF$;
 COMMIT;
-

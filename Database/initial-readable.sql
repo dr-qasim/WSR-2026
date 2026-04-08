@@ -1197,11 +1197,12 @@ RETURNS trigger
 AS $$
 DECLARE
     lot_status integer;
-    quantity_received numeric(18,3);
+    lot_quantity_received numeric(18,3);
     total_used numeric(18,3);
+BEGIN
     SELECT status, quantity_received
-    INTO lot_status, quantity_received
-    FROM raw_material_lots
+    INTO lot_status, lot_quantity_received
+    FROM raw_material_lots lot
     WHERE id = NEW.raw_material_lot_id;
 
     IF lot_status <> 2 THEN
@@ -1209,6 +1210,7 @@ DECLARE
             'Only approved raw material lots can be consumed. Lot % has status %',
             NEW.raw_material_lot_id,
             lot_status;
+    END IF;
 
     IF TG_OP = 'UPDATE' THEN
         SELECT COALESCE(SUM(quantity_used), 0)
@@ -1224,13 +1226,15 @@ DECLARE
         INTO total_used
         FROM batch_raw_material_consumptions
         WHERE raw_material_lot_id = NEW.raw_material_lot_id;
+    END IF;
 
     total_used := total_used + NEW.quantity_used;
 
-    IF total_used > quantity_received THEN
+    IF total_used > lot_quantity_received THEN
         RAISE EXCEPTION
             'Total consumption for raw material lot % exceeds received quantity',
             NEW.raw_material_lot_id;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1640,5 +1644,4 @@ PERFORM setval(
         (SELECT MAX(id) FROM process_deviations) + 1,
         nextval(pg_get_serial_sequence('process_deviations', 'id'))),
     false);
-
 

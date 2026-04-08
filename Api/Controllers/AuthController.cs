@@ -1,8 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
+using PlantProduction.Api.Data;
 using PlantProduction.Api.Security;
 
 namespace PlantProduction.Api.Controllers;
@@ -10,7 +11,7 @@ namespace PlantProduction.Api.Controllers;
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController(
-    NpgsqlDataSource dataSource,
+    PlantProductionDbContext dbContext,
     JwtTokenService jwtTokenService,
     IConfiguration configuration) : ControllerBase
 {
@@ -23,34 +24,30 @@ public sealed class AuthController(
             return BadRequest(ApiResponse.Fail("Логин и пароль обязательны."));
         }
 
-        const string sql = """
-            SELECT
-                u.id,
-                u.login,
-                u.full_name,
-                u.is_active,
-                r.code AS role_code,
-                r.name AS role_name,
-                d.code AS department_code,
-                d.name AS department_name
-            FROM app_users u
-            JOIN user_roles r ON r.id = u.user_role_id
-            JOIN departments d ON d.id = u.department_id
-            WHERE LOWER(u.login) = LOWER(@login)
-            LIMIT 1;
-            """;
+        var normalizedLogin = request.Login.Trim().ToLower();
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("login", request.Login.Trim());
+        var user = await dbContext.AppUsers
+            .AsNoTracking()
+            .Where(x => x.Login.ToLower() == normalizedLogin)
+            .Select(x => new
+            {
+                x.Id,
+                x.Login,
+                x.FullName,
+                x.IsActive,
+                RoleCode = x.UserRole.Code,
+                RoleName = x.UserRole.Name,
+                DepartmentCode = x.Department.Code,
+                DepartmentName = x.Department.Name
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+        if (user is null)
         {
             return Unauthorized(ApiResponse.Fail("Неверный логин или пароль."));
         }
 
-        if (!reader.GetBoolean("is_active"))
+        if (!user.IsActive)
         {
             return Unauthorized(ApiResponse.Fail("Пользователь отключен."));
         }
@@ -62,19 +59,19 @@ public sealed class AuthController(
         }
 
         var response = new LoginResponse(
-            reader.GetInt32("id"),
-            reader.GetString("login"),
-            reader.GetString("full_name"),
-            reader.GetString("role_code"),
-            reader.GetString("role_name"),
-            reader.GetString("department_code"),
-            reader.GetString("department_name"),
+            user.Id,
+            user.Login,
+            user.FullName,
+            user.RoleCode,
+            user.RoleName,
+            user.DepartmentCode,
+            user.DepartmentName,
             jwtTokenService.CreateToken(
-                reader.GetInt32("id"),
-                reader.GetString("login"),
-                reader.GetString("full_name"),
-                reader.GetString("role_code"),
-                reader.GetString("department_code")));
+                user.Id,
+                user.Login,
+                user.FullName,
+                user.RoleCode,
+                user.DepartmentCode));
 
         return Ok(ApiResponse<LoginResponse>.Ok(response, "Авторизация выполнена."));
     }
