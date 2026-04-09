@@ -2,14 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
-using PlantProduction.Api.Data;
+using PlantProduction.Api.Model;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/technology-cards")]
-public sealed class TechnologyCardsController(PlantProductionDbContext dbContext) : ControllerBase
+public sealed class TechnologyCardsController(PlantProductionScaffoldDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetTechnologyCards(CancellationToken cancellationToken)
@@ -74,7 +74,7 @@ public sealed class TechnologyCardsController(PlantProductionDbContext dbContext
                 x.Instruction,
                 x.IsRequired,
                 x.ExpectedDurationMinutes,
-                x.Parameters
+                x.TechnologyStepParameters
                     .OrderBy(p => p.Id)
                     .Select(p => new TechnologyStepParameterDetail(
                         p.Id,

@@ -2,14 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
-using PlantProduction.Api.Data;
+using PlantProduction.Api.Model;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/laboratory")]
-public sealed class LaboratoryController(PlantProductionDbContext dbContext) : ControllerBase
+public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbContext) : ControllerBase
 {
     [HttpGet("specifications")]
     public async Task<IActionResult> GetSpecifications(CancellationToken cancellationToken)

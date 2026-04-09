@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
-using PlantProduction.Api.Data;
+using PlantProduction.Api.Model;
 using PlantProduction.Api.Security;
 
 namespace PlantProduction.Api.Controllers;
@@ -11,7 +11,7 @@ namespace PlantProduction.Api.Controllers;
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController(
-    PlantProductionDbContext dbContext,
+    PlantProductionScaffoldDbContext dbContext,
     JwtTokenService jwtTokenService,
     IConfiguration configuration) : ControllerBase
 {

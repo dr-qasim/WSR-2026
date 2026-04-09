@@ -2,14 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
-using PlantProduction.Api.Data;
+using PlantProduction.Api.Model;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/catalog")]
-public sealed class CatalogController(PlantProductionDbContext dbContext) : ControllerBase
+public sealed class CatalogController(PlantProductionScaffoldDbContext dbContext) : ControllerBase
 {
     [HttpGet("products")]
     public async Task<IActionResult> GetProducts(CancellationToken cancellationToken)

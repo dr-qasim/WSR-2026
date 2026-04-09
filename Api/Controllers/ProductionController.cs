@@ -2,14 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
-using PlantProduction.Api.Data;
+using PlantProduction.Api.Model;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/production")]
-public sealed class ProductionController(PlantProductionDbContext dbContext) : ControllerBase
+public sealed class ProductionController(PlantProductionScaffoldDbContext dbContext) : ControllerBase
 {
     [HttpGet("orders")]
     public async Task<IActionResult> GetOrders(CancellationToken cancellationToken)

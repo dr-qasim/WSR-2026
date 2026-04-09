@@ -2,14 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlantProduction.Api.Common;
-using PlantProduction.Api.Data;
+using PlantProduction.Api.Model;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/recipes")]
-public sealed class RecipesController(PlantProductionDbContext dbContext) : ControllerBase
+public sealed class RecipesController(PlantProductionScaffoldDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetRecipes(CancellationToken cancellationToken)
