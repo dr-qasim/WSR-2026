@@ -16,3 +16,6 @@ obj/
 *.snupkg
 
 TestResults/
+
+README.md
+readme.md
