@@ -1,32 +1,43 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using PlantProduction.Api.Common;
+using PlantProduction.Api.Model;
 
 namespace PlantProduction.Api.Controllers;
 
 [ApiController]
 [Route("api/system")]
-public sealed class SystemController : ControllerBase
+public sealed class SystemController(PlantProductionScaffoldDbContext dbContext) : ControllerBase
 {
     [HttpGet("status")]
-    public IActionResult GetStatus()
+    public async Task<IActionResult> GetStatus(CancellationToken cancellationToken)
     {
-        return Ok(new
-        {
-            project = "PlantProduction",
-            status = "ready",
-            modules = new[]
+        var databaseReady = await dbContext.Database.CanConnectAsync(cancellationToken);
+
+        return Ok(ApiResponse<SystemStatusResponse>.Ok(new SystemStatusResponse(
+            "PlantProduction",
+            databaseReady ? "ready" : "database_error",
+            databaseReady,
+            new[]
             {
                 "api",
                 "desktop",
                 "web",
                 "database"
             },
-            priorities = new[]
+            new[]
             {
                 "database",
                 "api",
                 "desktop",
                 "web"
-            }
-        });
+            })));
     }
 }
+
+public sealed record SystemStatusResponse(
+    string Project,
+    string Status,
+    bool DatabaseReady,
+    string[] Modules,
+    string[] Priorities);

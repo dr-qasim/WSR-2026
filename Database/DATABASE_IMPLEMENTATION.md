@@ -1,75 +1,71 @@
-# Database Implementation
+# Database
 
-## Scope
+## Что запускать
 
-Implemented database layer covers:
-- identity and access data (`departments`, `user_roles`, `app_users`);
-- catalogs (`products`, `raw_materials`, `suppliers`, `production_lines`, `equipment`);
-- recipes and technology cards with versioning;
-- production orders, batches, consumptions, step runs, measurements, telemetry and deviations;
-- laboratory specifications, tests, parameter results and quality decisions;
-- notifications, audit log and status history.
+Есть три SQL-файла:
 
-## Enforced Rules
+- `schema-only.sql`  
+  Только структура базы: таблицы, ключи, индексы, функции и триггеры.
 
-At database level the schema now enforces:
-- only one active approved recipe per product;
-- only one active approved technology card per product;
-- batch consistency with product, recipe version, technology card, production order and extruder program through composite foreign keys;
-- quantity, percentage, range and timeline checks;
-- only approved and active normative versions can be used to create a production batch;
-- technology step runs cannot reference steps from another technology card;
-- measured step values cannot reference parameters from another technology step;
-- process deviations cannot reference a step run from another production batch;
-- only approved raw material lots can be consumed and total consumption cannot exceed received quantity;
-- telemetry entries cannot reference equipment from another production line;
-- subject integrity for laboratory tests, quality specifications and quality decisions;
-- laboratory tests must use a specification that matches the tested raw material or batch product;
-- laboratory test parameter results must belong to the specification of the parent test;
-- quality decisions must reference a laboratory test for the same controlled object;
-- uniqueness of current quality decision for a lot or production batch;
-- recipe approval blocked when total component percentage is not exactly `100%`;
-- direct edits of components in an already approved recipe are also blocked if they break the `100%` total.
+- `demo-data.sql`  
+  Только тестовые данные для демонстрации API и Desktop.
 
-## Criteria Coverage
+- `initial-readable.sql`  
+  Полный большой файл "всё в одном": схема + тестовые данные.
 
-The schema is designed to directly support the database scoring block from the competition criteria:
-- full minimum set of entities for products, raw materials, recipes, technology cards, batches, laboratory control, notifications, audit and status history;
-- explicit identifiers in every table;
-- typed numeric/date/boolean fields with check constraints where business rules require them;
-- 3NF-oriented structure with separation of normative and operational data;
-- meaningful seed data for at least two end-to-end scenarios;
-- all three mandatory integrity constraints from the task implemented at SQL level.
+## Рекомендуемый порядок
 
-## Seed Data
+Если нужна чистая и понятная установка, запускайте так:
 
-Initial seed data contains:
-- departments, roles and four users;
-- two products and five raw materials;
-- approved and draft recipe versions;
-- approved and draft technology cards;
-- two production orders and two production batches;
-- laboratory specifications, tests and decisions;
-- telemetry, deviation, audit and notification examples.
-
-## Commands
-
-Create SQL script:
-
-```powershell
-dotnet ef migrations script `
-  --project .\src\WSR2026.PlantProduction.Infrastructure\WSR2026.PlantProduction.Infrastructure.csproj `
-  --startup-project .\src\WSR2026.PlantProduction.Api\WSR2026.PlantProduction.Api.csproj `
-  --context PlantProductionDbContext `
-  --idempotent `
-  -o .\docs\sql\initial-idempotent.sql
+```sql
+\i schema-only.sql
+\i demo-data.sql
 ```
 
-Apply migration to a configured PostgreSQL instance:
+Если нужен один файл без разделения, можно запускать только:
 
-```powershell
-dotnet ef database update `
-  --project .\src\WSR2026.PlantProduction.Infrastructure\WSR2026.PlantProduction.Infrastructure.csproj `
-  --startup-project .\src\WSR2026.PlantProduction.Api\WSR2026.PlantProduction.Api.csproj `
-  --context PlantProductionDbContext
+```sql
+\i initial-readable.sql
+```
+
+`initial-readable.sql` и `demo-data.sql` вместе запускать не нужно, потому что в `initial-readable.sql` тестовые данные уже есть.
+
+## Что покрывает база
+
+База уже содержит:
+
+- пользователей, роли и отделы;
+- продукцию, сырьё, поставщиков, линии и оборудование;
+- рецептуры и компоненты;
+- технологические карты, шаги и параметры шагов;
+- заказы, партии, расход сырья, шаги партии и фактические измерения;
+- лабораторные спецификации, испытания, результаты и решения;
+- отклонения, аудит и уведомления.
+
+## Важные ограничения
+
+На уровне SQL уже сделаны ключевые правила из задания:
+
+- только одна активная утверждённая рецептура на продукт;
+- только одна активная утверждённая технологическая карта на продукт;
+- нельзя утвердить рецептуру, если сумма компонентов не `100%`;
+- нельзя создать партию с несогласованными рецептурой и техкартой;
+- нельзя писать фактические данные по чужому шагу;
+- нельзя принять решение по качеству для чужого испытания.
+
+## Тестовые данные
+
+В тестовых данных уже есть:
+
+- пользователи `technologist1`, `lab1`, `operator1`, `admin`;
+- 2 продукта;
+- 5 видов сырья;
+- рецептуры и техкарты;
+- производственные заказы и партии;
+- лабораторные испытания и решения по качеству.
+
+Для API demo-пароль один для всех:
+
+```text
+12345
 ```

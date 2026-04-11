@@ -43,6 +43,33 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
             return BadRequest(ApiResponse.Fail("Некорректные данные производственного заказа."));
         }
 
+        var productExists = await dbContext.Products
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ProductId, cancellationToken);
+
+        if (!productExists)
+        {
+            return BadRequest(ApiResponse.Fail("Продукт не найден."));
+        }
+
+        var lineExists = await dbContext.ProductionLines
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ProductionLineId && x.IsActive, cancellationToken);
+
+        if (!lineExists)
+        {
+            return BadRequest(ApiResponse.Fail("Производственная линия не найдена или отключена."));
+        }
+
+        var userExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.CreatedByUserId && x.IsActive, cancellationToken);
+
+        if (!userExists)
+        {
+            return BadRequest(ApiResponse.Fail("Пользователь-создатель не найден."));
+        }
+
         var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
 
         try
@@ -105,6 +132,130 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
             request.TechnologyCardId <= 0 || request.PlannedQuantity <= 0)
         {
             return BadRequest(ApiResponse.Fail("Некорректные данные производственной партии."));
+        }
+
+        if (request.Consumptions.Count == 0)
+        {
+            return BadRequest(ApiResponse.Fail("Нужно указать хотя бы один расход сырья."));
+        }
+
+        if (request.Consumptions.Any(x => x.RawMaterialLotId <= 0 || x.QuantityUsed <= 0))
+        {
+            return BadRequest(ApiResponse.Fail("В расходе сырья есть некорректные данные."));
+        }
+
+        if (request.Consumptions.Select(x => x.RawMaterialLotId).Distinct().Count() != request.Consumptions.Count)
+        {
+            return BadRequest(ApiResponse.Fail("Одна и та же партия сырья не должна повторяться в расходе."));
+        }
+
+        var productExists = await dbContext.Products
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ProductId, cancellationToken);
+
+        if (!productExists)
+        {
+            return BadRequest(ApiResponse.Fail("Продукт не найден."));
+        }
+
+        var lineExists = await dbContext.ProductionLines
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ProductionLineId && x.IsActive, cancellationToken);
+
+        if (!lineExists)
+        {
+            return BadRequest(ApiResponse.Fail("Производственная линия не найдена или отключена."));
+        }
+
+        var recipe = await dbContext.RecipeVersions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == request.RecipeVersionId, cancellationToken);
+
+        if (recipe is null)
+        {
+            return BadRequest(ApiResponse.Fail("Рецептура не найдена."));
+        }
+
+        if (recipe.ProductId != request.ProductId)
+        {
+            return BadRequest(ApiResponse.Fail("Рецептура относится к другому продукту."));
+        }
+
+        if (!recipe.IsActive || recipe.Status != 3)
+        {
+            return BadRequest(ApiResponse.Fail("Для партии можно использовать только активную утвержденную рецептуру."));
+        }
+
+        var technologyCard = await dbContext.TechnologyCards
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == request.TechnologyCardId, cancellationToken);
+
+        if (technologyCard is null)
+        {
+            return BadRequest(ApiResponse.Fail("Технологическая карта не найдена."));
+        }
+
+        if (technologyCard.ProductId != request.ProductId)
+        {
+            return BadRequest(ApiResponse.Fail("Технологическая карта относится к другому продукту."));
+        }
+
+        if (!technologyCard.IsActive || technologyCard.Status != 3)
+        {
+            return BadRequest(ApiResponse.Fail("Для партии можно использовать только активную утвержденную технологическую карту."));
+        }
+
+        if (request.ProductionOrderId is not null)
+        {
+            var order = await dbContext.ProductionOrders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == request.ProductionOrderId.Value, cancellationToken);
+
+            if (order is null)
+            {
+                return BadRequest(ApiResponse.Fail("Производственный заказ не найден."));
+            }
+
+            if (order.ProductId != request.ProductId || order.ProductionLineId != request.ProductionLineId)
+            {
+                return BadRequest(ApiResponse.Fail("Заказ не соответствует выбранному продукту или линии."));
+            }
+        }
+
+        if (request.ExtruderProgramId is not null)
+        {
+            var extruderProgram = await dbContext.ExtruderPrograms
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == request.ExtruderProgramId.Value, cancellationToken);
+
+            if (extruderProgram is null)
+            {
+                return BadRequest(ApiResponse.Fail("Программа экструдера не найдена."));
+            }
+
+            if (extruderProgram.ProductId != request.ProductId || extruderProgram.TechnologyCardId != request.TechnologyCardId || !extruderProgram.IsActive)
+            {
+                return BadRequest(ApiResponse.Fail("Программа экструдера не подходит для выбранной партии."));
+            }
+        }
+
+        var lotIds = request.Consumptions.Select(x => x.RawMaterialLotId).ToList();
+        var lots = await dbContext.RawMaterialLots
+            .Where(x => lotIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        if (lots.Count != lotIds.Count)
+        {
+            return BadRequest(ApiResponse.Fail("Одна или несколько партий сырья не найдены."));
+        }
+
+        foreach (var consumption in request.Consumptions)
+        {
+            var lot = lots.First(x => x.Id == consumption.RawMaterialLotId);
+            if (lot.QuantityAvailable < consumption.QuantityUsed)
+            {
+                return BadRequest(ApiResponse.Fail($"Недостаточно остатка по партии сырья {lot.InternalLotNumber}."));
+            }
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -215,6 +366,11 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
             return NotFound(ApiResponse.Fail("Партия не найдена."));
         }
 
+        if (batch.Status >= 6)
+        {
+            return BadRequest(ApiResponse.Fail("Завершенную партию нельзя снова запустить."));
+        }
+
         batch.Status = 2;
         batch.StartedAt ??= DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -231,6 +387,15 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
         if (batch is null)
         {
             return NotFound(ApiResponse.Fail("Партия не найдена."));
+        }
+
+        var hasUnfinishedSteps = await dbContext.BatchTechnologyStepRuns
+            .AsNoTracking()
+            .AnyAsync(x => x.ProductionBatchId == id && x.Status != 3, cancellationToken);
+
+        if (hasUnfinishedSteps)
+        {
+            return BadRequest(ApiResponse.Fail("Нельзя завершить партию, пока не завершены все шаги."));
         }
 
         try
@@ -255,11 +420,22 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
         }
 
         var stepRun = await dbContext.BatchTechnologyStepRuns
+            .Include(x => x.ProductionBatch)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (stepRun is null)
         {
             return NotFound(ApiResponse.Fail("Шаг партии не найден."));
+        }
+
+        if (stepRun.ProductionBatch.Status < 2)
+        {
+            return BadRequest(ApiResponse.Fail("Сначала нужно перевести партию в работу."));
+        }
+
+        if (stepRun.Status == 3)
+        {
+            return BadRequest(ApiResponse.Fail("Шаг уже завершен."));
         }
 
         try
@@ -286,11 +462,43 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
         }
 
         var stepRun = await dbContext.BatchTechnologyStepRuns
+            .Include(x => x.TechnologyStep)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (stepRun is null)
         {
             return NotFound(ApiResponse.Fail("Шаг партии не найден."));
+        }
+
+        if (stepRun.Status == 1)
+        {
+            return BadRequest(ApiResponse.Fail("Сначала нужно начать шаг."));
+        }
+
+        if (stepRun.Status == 3)
+        {
+            return BadRequest(ApiResponse.Fail("Шаг уже завершен."));
+        }
+
+        var requiredParameterIds = await dbContext.TechnologyStepParameters
+            .AsNoTracking()
+            .Where(x => x.TechnologyStepId == stepRun.TechnologyStepId && x.IsRequired)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        if (requiredParameterIds.Count > 0)
+        {
+            var measuredParameterIds = await dbContext.BatchStepMeasuredValues
+                .AsNoTracking()
+                .Where(x => x.BatchTechnologyStepRunId == id)
+                .Select(x => x.TechnologyStepParameterId)
+                .ToListAsync(cancellationToken);
+
+            var hasAllRequiredMeasurements = requiredParameterIds.All(measuredParameterIds.Contains);
+            if (!hasAllRequiredMeasurements)
+            {
+                return BadRequest(ApiResponse.Fail("Нельзя завершить шаг, пока не заполнены обязательные параметры."));
+            }
         }
 
         try
@@ -322,10 +530,25 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
             return BadRequest(ApiResponse.Fail("Нужно передать ровно одно фактическое значение."));
         }
 
+        var stepRun = await dbContext.BatchTechnologyStepRuns
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (stepRun is null)
+        {
+            return NotFound(ApiResponse.Fail("Шаг партии не найден."));
+        }
+
+        if (stepRun.Status == 3)
+        {
+            return BadRequest(ApiResponse.Fail("Нельзя записать факт в уже завершенный шаг."));
+        }
+
         var metadata = await dbContext.TechnologyStepParameters
             .AsNoTracking()
             .Where(x => x.Id == request.TechnologyStepParameterId)
             .Select(x => new ParameterMetadata(
+                x.TechnologyStepId,
                 x.ValueType,
                 x.TargetNumericValue,
                 x.MinNumericValue,
@@ -337,6 +560,20 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
         if (metadata is null)
         {
             return NotFound(ApiResponse.Fail("Параметр технологического шага не найден."));
+        }
+
+        if (metadata.TechnologyStepId != stepRun.TechnologyStepId)
+        {
+            return BadRequest(ApiResponse.Fail("Параметр не относится к выбранному шагу."));
+        }
+
+        var hasMeasurement = await dbContext.BatchStepMeasuredValues
+            .AsNoTracking()
+            .AnyAsync(x => x.BatchTechnologyStepRunId == id && x.TechnologyStepParameterId == request.TechnologyStepParameterId, cancellationToken);
+
+        if (hasMeasurement)
+        {
+            return BadRequest(ApiResponse.Fail("По этому параметру уже записано фактическое значение."));
         }
 
         var isWithinTolerance = CalculateMeasurementResult(metadata, request);
@@ -374,6 +611,27 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
         if (request.ProductionBatchId <= 0 || string.IsNullOrWhiteSpace(request.Title))
         {
             return BadRequest(ApiResponse.Fail("Некорректные данные отклонения."));
+        }
+
+        var batchExists = await dbContext.ProductionBatches
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ProductionBatchId, cancellationToken);
+
+        if (!batchExists)
+        {
+            return BadRequest(ApiResponse.Fail("Партия не найдена."));
+        }
+
+        if (request.BatchTechnologyStepRunId is not null)
+        {
+            var stepRunMatchesBatch = await dbContext.BatchTechnologyStepRuns
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == request.BatchTechnologyStepRunId.Value && x.ProductionBatchId == request.ProductionBatchId, cancellationToken);
+
+            if (!stepRunMatchesBatch)
+            {
+                return BadRequest(ApiResponse.Fail("Шаг не относится к выбранной партии."));
+            }
         }
 
         try
@@ -459,6 +717,7 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
     }
 
     private sealed record ParameterMetadata(
+        int TechnologyStepId,
         int ValueType,
         decimal? TargetNumericValue,
         decimal? MinNumericValue,

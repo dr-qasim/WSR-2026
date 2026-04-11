@@ -107,6 +107,42 @@ public sealed class TechnologyCardsController(PlantProductionScaffoldDbContext d
             return BadRequest(ApiResponse.Fail("Нужно добавить хотя бы один шаг технологической карты."));
         }
 
+        var productExists = await dbContext.Products
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ProductId, cancellationToken);
+
+        if (!productExists)
+        {
+            return BadRequest(ApiResponse.Fail("Продукт не найден."));
+        }
+
+        var userExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.CreatedByUserId && x.IsActive, cancellationToken);
+
+        if (!userExists)
+        {
+            return BadRequest(ApiResponse.Fail("Пользователь-создатель не найден."));
+        }
+
+        if (request.Steps.Any(x => x.StepOrder <= 0 || string.IsNullOrWhiteSpace(x.Title)))
+        {
+            return BadRequest(ApiResponse.Fail("В шагах технологической карты есть пустые или некорректные данные."));
+        }
+
+        if (request.Steps.Select(x => x.StepOrder).Distinct().Count() != request.Steps.Count)
+        {
+            return BadRequest(ApiResponse.Fail("Порядок шагов не должен повторяться."));
+        }
+
+        foreach (var step in request.Steps)
+        {
+            if (step.Parameters.Any(x => string.IsNullOrWhiteSpace(x.Name)))
+            {
+                return BadRequest(ApiResponse.Fail("У параметров шага должно быть название."));
+            }
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
@@ -187,6 +223,15 @@ public sealed class TechnologyCardsController(PlantProductionScaffoldDbContext d
             return BadRequest(ApiResponse.Fail("Нужно указать пользователя, который утверждает карту."));
         }
 
+        var approverExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ApprovedByUserId && x.IsActive, cancellationToken);
+
+        if (!approverExists)
+        {
+            return BadRequest(ApiResponse.Fail("Пользователь, который утверждает карту, не найден."));
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
@@ -198,6 +243,16 @@ public sealed class TechnologyCardsController(PlantProductionScaffoldDbContext d
             {
                 await transaction.RollbackAsync(cancellationToken);
                 return NotFound(ApiResponse.Fail("Технологическая карта не найдена."));
+            }
+
+            var hasSteps = await dbContext.TechnologySteps
+                .AsNoTracking()
+                .AnyAsync(x => x.TechnologyCardId == id, cancellationToken);
+
+            if (!hasSteps)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return BadRequest(ApiResponse.Fail("Нельзя утвердить технологическую карту без шагов."));
             }
 
             await dbContext.TechnologyCards

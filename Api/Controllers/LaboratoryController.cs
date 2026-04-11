@@ -132,6 +132,87 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
             return BadRequest(ApiResponse.Fail("Некорректные данные лабораторного испытания."));
         }
 
+        if (request.SubjectType == 1)
+        {
+            if (request.RawMaterialLotId is null || request.ProductionBatchId is not null)
+            {
+                return BadRequest(ApiResponse.Fail("Для входного контроля нужно указать только партию сырья."));
+            }
+        }
+
+        if (request.SubjectType == 2)
+        {
+            if (request.ProductionBatchId is null || request.RawMaterialLotId is not null)
+            {
+                return BadRequest(ApiResponse.Fail("Для контроля партии нужно указать только производственную партию."));
+            }
+        }
+
+        var specification = await dbContext.QualitySpecifications
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == request.QualitySpecificationId, cancellationToken);
+
+        if (specification is null)
+        {
+            return BadRequest(ApiResponse.Fail("Спецификация качества не найдена."));
+        }
+
+        if (!specification.IsActive || specification.Status != 2)
+        {
+            return BadRequest(ApiResponse.Fail("Можно использовать только активную утвержденную спецификацию."));
+        }
+
+        if (specification.SubjectType != request.SubjectType)
+        {
+            return BadRequest(ApiResponse.Fail("Спецификация не подходит для выбранного типа объекта контроля."));
+        }
+
+        if (request.SubjectType == 1)
+        {
+            var lot = await dbContext.RawMaterialLots
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == request.RawMaterialLotId, cancellationToken);
+
+            if (lot is null)
+            {
+                return BadRequest(ApiResponse.Fail("Партия сырья не найдена."));
+            }
+
+            if (specification.RawMaterialId != lot.RawMaterialId)
+            {
+                return BadRequest(ApiResponse.Fail("Спецификация не подходит для выбранной партии сырья."));
+            }
+        }
+
+        if (request.SubjectType == 2)
+        {
+            var batch = await dbContext.ProductionBatches
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == request.ProductionBatchId, cancellationToken);
+
+            if (batch is null)
+            {
+                return BadRequest(ApiResponse.Fail("Производственная партия не найдена."));
+            }
+
+            if (specification.ProductId != batch.ProductId)
+            {
+                return BadRequest(ApiResponse.Fail("Спецификация не подходит для выбранной производственной партии."));
+            }
+        }
+
+        if (request.TesterUserId is not null)
+        {
+            var testerExists = await dbContext.AppUsers
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == request.TesterUserId.Value && x.IsActive, cancellationToken);
+
+            if (!testerExists)
+            {
+                return BadRequest(ApiResponse.Fail("Лаборант не найден."));
+            }
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
@@ -203,12 +284,26 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
             return BadRequest(ApiResponse.Fail("Нужно указать лаборанта."));
         }
 
+        var testerExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.TesterUserId && x.IsActive, cancellationToken);
+
+        if (!testerExists)
+        {
+            return BadRequest(ApiResponse.Fail("Лаборант не найден."));
+        }
+
         var test = await dbContext.LaboratoryTests
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (test is null)
         {
             return NotFound(ApiResponse.Fail("Испытание не найдено."));
+        }
+
+        if (test.Status == 3)
+        {
+            return BadRequest(ApiResponse.Fail("Завершенное испытание нельзя начать заново."));
         }
 
         try
@@ -232,6 +327,20 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
         if (request.Items.Count == 0)
         {
             return BadRequest(ApiResponse.Fail("Нужно передать хотя бы один результат испытания."));
+        }
+
+        var test = await dbContext.LaboratoryTests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (test is null)
+        {
+            return NotFound(ApiResponse.Fail("Испытание не найдено."));
+        }
+
+        if (test.Status == 3)
+        {
+            return BadRequest(ApiResponse.Fail("Нельзя менять результаты завершенного испытания."));
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -290,12 +399,36 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
             return BadRequest(ApiResponse.Fail("Нужно указать лаборанта."));
         }
 
+        var testerExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.TesterUserId && x.IsActive, cancellationToken);
+
+        if (!testerExists)
+        {
+            return BadRequest(ApiResponse.Fail("Лаборант не найден."));
+        }
+
         var test = await dbContext.LaboratoryTests
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (test is null)
         {
             return NotFound(ApiResponse.Fail("Испытание не найдено."));
+        }
+
+        var requiredResults = await dbContext.LaboratoryTestParameterResults
+            .AsNoTracking()
+            .Where(x => x.LaboratoryTestId == id && x.IsRequired)
+            .ToListAsync(cancellationToken);
+
+        var hasAllRequiredResults = requiredResults.All(x =>
+            x.ActualNumericValue is not null ||
+            !string.IsNullOrWhiteSpace(x.ActualTextValue) ||
+            x.ActualBooleanValue is not null);
+
+        if (!hasAllRequiredResults)
+        {
+            return BadRequest(ApiResponse.Fail("Нельзя завершить испытание, пока не заполнены обязательные результаты."));
         }
 
         try
@@ -322,6 +455,15 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
             return BadRequest(ApiResponse.Fail("Некорректные данные решения по качеству."));
         }
 
+        var deciderExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.DecidedByUserId && x.IsActive, cancellationToken);
+
+        if (!deciderExists)
+        {
+            return BadRequest(ApiResponse.Fail("Пользователь, который принимает решение, не найден."));
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
@@ -339,6 +481,16 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
             {
                 await transaction.RollbackAsync(cancellationToken);
                 return NotFound(ApiResponse.Fail("Испытание не найдено."));
+            }
+
+            var testCompleted = await dbContext.LaboratoryTests
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == request.LaboratoryTestId && x.Status == 3, cancellationToken);
+
+            if (!testCompleted)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return BadRequest(ApiResponse.Fail("Решение можно принять только по завершенному испытанию."));
             }
 
             await dbContext.QualityDecisions

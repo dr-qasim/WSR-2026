@@ -89,6 +89,49 @@ public sealed class RecipesController(PlantProductionScaffoldDbContext dbContext
             return BadRequest(ApiResponse.Fail("Нужно добавить хотя бы один компонент рецептуры."));
         }
 
+        var productExists = await dbContext.Products
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ProductId, cancellationToken);
+
+        if (!productExists)
+        {
+            return BadRequest(ApiResponse.Fail("Продукт не найден."));
+        }
+
+        var userExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.CreatedByUserId && x.IsActive, cancellationToken);
+
+        if (!userExists)
+        {
+            return BadRequest(ApiResponse.Fail("Пользователь-создатель не найден."));
+        }
+
+        if (request.Components.Any(x => x.RawMaterialId <= 0 || x.LoadOrder <= 0 || x.Percentage <= 0 || x.AllowedDeviationPercent < 0))
+        {
+            return BadRequest(ApiResponse.Fail("В компонентах рецептуры есть некорректные значения."));
+        }
+
+        if (request.Components.Select(x => x.RawMaterialId).Distinct().Count() != request.Components.Count)
+        {
+            return BadRequest(ApiResponse.Fail("Сырье в рецептуре не должно повторяться."));
+        }
+
+        if (request.Components.Select(x => x.LoadOrder).Distinct().Count() != request.Components.Count)
+        {
+            return BadRequest(ApiResponse.Fail("Порядок загрузки в рецептуре не должен повторяться."));
+        }
+
+        var rawMaterialIds = request.Components.Select(x => x.RawMaterialId).Distinct().ToList();
+        var rawMaterialCount = await dbContext.RawMaterials
+            .AsNoTracking()
+            .CountAsync(x => rawMaterialIds.Contains(x.Id), cancellationToken);
+
+        if (rawMaterialCount != rawMaterialIds.Count)
+        {
+            return BadRequest(ApiResponse.Fail("Одно или несколько видов сырья не найдены."));
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
@@ -145,6 +188,15 @@ public sealed class RecipesController(PlantProductionScaffoldDbContext dbContext
             return BadRequest(ApiResponse.Fail("Нужно указать пользователя, который утверждает рецептуру."));
         }
 
+        var approverExists = await dbContext.AppUsers
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.ApprovedByUserId && x.IsActive, cancellationToken);
+
+        if (!approverExists)
+        {
+            return BadRequest(ApiResponse.Fail("Пользователь, который утверждает рецептуру, не найден."));
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
@@ -156,6 +208,16 @@ public sealed class RecipesController(PlantProductionScaffoldDbContext dbContext
             {
                 await transaction.RollbackAsync(cancellationToken);
                 return NotFound(ApiResponse.Fail("Рецептура не найдена."));
+            }
+
+            var hasComponents = await dbContext.RecipeComponents
+                .AsNoTracking()
+                .AnyAsync(x => x.RecipeVersionId == id, cancellationToken);
+
+            if (!hasComponents)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return BadRequest(ApiResponse.Fail("Нельзя утвердить рецептуру без компонентов."));
             }
 
             await dbContext.RecipeVersions

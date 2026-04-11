@@ -104,7 +104,7 @@
                                 <StackPanel Spacing="10">
                                     <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать черновик рецептуры" />
                                     <TextBlock Text="Компоненты: rawMaterialId;percentage;loadOrder;allowedDeviation" />
-                                    <TextBox x:Name="RecipeProductIdTextBox" Watermark="ProductId" />
+                                    <TextBox x:Name="RecipeProductIdTextBox" Watermark="ProductId" Text="1" />
                                     <TextBox x:Name="RecipeNotesTextBox" Watermark="Примечание" />
                                     <TextBox x:Name="RecipeComponentsTextBox"
                                              Height="240"
@@ -149,7 +149,7 @@
                                     <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать черновик техкарты" />
                                     <TextBlock Text="Шаги: stepOrder;stepType;title;isRequired;durationMinutes;instruction" />
                                     <TextBlock Text="Параметры: stepOrder;name;valueType;unit;targetNumeric;min;max;targetText;targetBool;isRequired;comment" />
-                                    <TextBox x:Name="TechnologyCardProductIdTextBox" Watermark="ProductId" />
+                                    <TextBox x:Name="TechnologyCardProductIdTextBox" Watermark="ProductId" Text="1" />
                                     <TextBox x:Name="TechnologyCardTitleTextBox" Watermark="Заголовок техкарты" />
                                     <TextBox x:Name="TechnologyCardDescriptionTextBox" Watermark="Описание" />
                                     <TextBox x:Name="TechnologyCardStepsTextBox"
@@ -184,9 +184,9 @@
                                 <DataGrid x:Name="OrdersGrid" Grid.Row="1" AutoGenerateColumns="True" />
                                 <StackPanel Grid.Row="2" Spacing="8">
                                     <TextBlock FontWeight="SemiBold" Text="Новый заказ" />
-                                    <TextBox x:Name="OrderProductIdTextBox" Watermark="ProductId" />
-                                    <TextBox x:Name="OrderLineIdTextBox" Watermark="ProductionLineId" />
-                                    <TextBox x:Name="OrderQuantityTextBox" Watermark="PlannedQuantity" />
+                                    <TextBox x:Name="OrderProductIdTextBox" Watermark="ProductId" Text="1" />
+                                    <TextBox x:Name="OrderLineIdTextBox" Watermark="ProductionLineId" Text="1" />
+                                    <TextBox x:Name="OrderQuantityTextBox" Watermark="PlannedQuantity" Text="100" />
                                     <TextBox x:Name="OrderPlannedStartTextBox" Watermark="PlannedStartAt, пример: 2026-04-08T10:00:00Z" />
                                 </StackPanel>
                             </Grid>
@@ -206,12 +206,12 @@
                                         <TextBlock FontWeight="SemiBold" Text="Новая партия" />
                                         <TextBlock Text="Расход: rawMaterialLotId;quantityUsed" />
                                         <TextBox x:Name="BatchOrderIdTextBox" Watermark="ProductionOrderId (необязательно)" />
-                                        <TextBox x:Name="BatchProductIdTextBox" Watermark="ProductId" />
-                                        <TextBox x:Name="BatchLineIdTextBox" Watermark="ProductionLineId" />
-                                        <TextBox x:Name="BatchRecipeIdTextBox" Watermark="RecipeVersionId" />
-                                        <TextBox x:Name="BatchTechnologyCardIdTextBox" Watermark="TechnologyCardId" />
+                                        <TextBox x:Name="BatchProductIdTextBox" Watermark="ProductId" Text="1" />
+                                        <TextBox x:Name="BatchLineIdTextBox" Watermark="ProductionLineId" Text="1" />
+                                        <TextBox x:Name="BatchRecipeIdTextBox" Watermark="RecipeVersionId" Text="1" />
+                                        <TextBox x:Name="BatchTechnologyCardIdTextBox" Watermark="TechnologyCardId" Text="1" />
                                         <TextBox x:Name="BatchExtruderProgramIdTextBox" Watermark="ExtruderProgramId (необязательно)" />
-                                        <TextBox x:Name="BatchQuantityTextBox" Watermark="PlannedQuantity" />
+                                        <TextBox x:Name="BatchQuantityTextBox" Watermark="PlannedQuantity" Text="100" />
                                         <TextBox x:Name="BatchConsumptionsTextBox"
                                                  Height="120"
                                                  AcceptsReturn="True"
@@ -310,9 +310,9 @@
                                 <StackPanel Spacing="10">
                                     <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать испытание" />
                                     <TextBox x:Name="LabSubjectTypeTextBox" Watermark="SubjectType: 1=lot, 2=batch" Text="1" />
-                                    <TextBox x:Name="LabRawMaterialLotIdTextBox" Watermark="RawMaterialLotId" />
+                                    <TextBox x:Name="LabRawMaterialLotIdTextBox" Watermark="RawMaterialLotId" Text="1" />
                                     <TextBox x:Name="LabProductionBatchIdTextBox" Watermark="ProductionBatchId" />
-                                    <TextBox x:Name="LabQualitySpecificationIdTextBox" Watermark="QualitySpecificationId" />
+                                    <TextBox x:Name="LabQualitySpecificationIdTextBox" Watermark="QualitySpecificationId" Text="1" />
                                     <TextBox x:Name="LabTestKindTextBox" Watermark="TestKind" Text="Incoming inspection" />
                                     <TextBox x:Name="LabPriorityTextBox" Watermark="Priority" Text="1" />
                                     <TextBox x:Name="LabCreateCommentTextBox" Watermark="Комментарий" />
@@ -331,7 +331,7 @@
 
                                     <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Решение по качеству" />
                                     <TextBox x:Name="LabDecisionStatusTextBox" Watermark="DecisionStatus: 1=release, 2=block" Text="1" />
-                                    <TextBox x:Name="LabDecisionCommentTextBox" Watermark="Комментарий" />
+                                    <TextBox x:Name="LabDecisionCommentTextBox" Watermark="Комментарий" Text="Решение принято" />
                                     <TextBox x:Name="LabDecisionBlockReasonTextBox" Watermark="BlockReason" />
                                     <Button Click="CreateDecisionButton_OnClick" Content="Принять решение" />
                                 </StackPanel>
