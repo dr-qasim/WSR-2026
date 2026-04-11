@@ -355,6 +355,33 @@ public sealed class ProductionController(PlantProductionScaffoldDbContext dbCont
         return Ok(ApiResponse<List<BatchStepRunItem>>.Ok(items));
     }
 
+    [HttpGet("deviations")]
+    public async Task<IActionResult> GetDeviations(CancellationToken cancellationToken)
+    {
+        var items = await dbContext.ProcessDeviations
+            .AsNoTracking()
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new DeviationItem(
+                x.Id,
+                x.ProductionBatchId,
+                x.ProductionBatch.BatchNumber,
+                x.BatchTechnologyStepRunId,
+                x.BatchTechnologyStepRun != null ? x.BatchTechnologyStepRun.TechnologyStep.StepOrder : null,
+                x.BatchTechnologyStepRun != null ? x.BatchTechnologyStepRun.TechnologyStep.Title : null,
+                x.Title,
+                x.ParameterName,
+                x.PlannedValue,
+                x.ActualValue,
+                x.Severity,
+                x.Details,
+                x.CreatedAt,
+                x.ReportedByUser != null ? x.ReportedByUser.FullName : null))
+            .ToListAsync(cancellationToken);
+
+        return Ok(ApiResponse<List<DeviationItem>>.Ok(items));
+    }
+
     [HttpPost("batches/{id:int}/start")]
     public async Task<IActionResult> StartBatch(int id, CancellationToken cancellationToken)
     {
@@ -813,5 +840,21 @@ public sealed record CreateDeviationRequest(
     int Severity,
     string? Details,
     int? ReportedByUserId);
+
+public sealed record DeviationItem(
+    int Id,
+    int ProductionBatchId,
+    string BatchNumber,
+    int? BatchTechnologyStepRunId,
+    int? StepOrder,
+    string? StepTitle,
+    string Title,
+    string? ParameterName,
+    string? PlannedValue,
+    string? ActualValue,
+    int Severity,
+    string? Details,
+    DateTime CreatedAt,
+    string? ReportedByName);
 
 public sealed record DeviationResponse(int Id);

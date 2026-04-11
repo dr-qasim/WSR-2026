@@ -4,342 +4,537 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         x:Class="PlantProduction.Desktop.MainWindow"
-        Width="1600"
-        Height="960"
-        MinWidth="1280"
-        MinHeight="760"
-        Title="PlantProduction Desktop">
-    <Grid RowDefinitions="Auto,Auto,*" Margin="16">
-        <Border Padding="16" CornerRadius="14" BorderThickness="1">
-            <StackPanel Spacing="6">
-                <TextBlock FontSize="28" FontWeight="Bold" Text="PlantProduction Desktop" />
-                <TextBlock Opacity="0.75"
-                           Text="Один desktop-клиент для технолога и лаборатории. Приоритет: рабочие сценарии, а не лишняя архитектура." />
-            </StackPanel>
-        </Border>
+        Width="1366"
+        Height="768"
+        MinWidth="1024"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        Title="Система производства СЗР">
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Width" Value="190" />
+            <Setter Property="Height" Value="48" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
 
-        <Border Grid.Row="1" Margin="0,12,0,12" Padding="16" CornerRadius="14" BorderThickness="1">
-            <Grid ColumnDefinitions="2*,1.2*,1.2*,1.2*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8">
-                <TextBox x:Name="ApiUrlTextBox"
-                         Grid.Column="0"
-                         Watermark="URL API"
-                         Text="http://localhost:5114" />
-                <TextBox x:Name="LoginTextBox"
-                         Grid.Column="1"
-                         Watermark="Логин"
-                         Text="technologist1" />
-                <TextBox x:Name="PasswordTextBox"
-                         Grid.Column="2"
-                         Watermark="Пароль"
-                         Text="12345" />
-                <TextBlock x:Name="CurrentUserTextBlock"
-                           Grid.Column="3"
+        <Style Selector="Button.nav-button">
+            <Setter Property="Width" Value="210" />
+            <Setter Property="Height" Value="56" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*" Margin="16">
+        <Border Padding="16" BorderThickness="1">
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="220,220,260,Auto,*" ColumnSpacing="16" RowSpacing="10">
+                <TextBlock Grid.Column="0"
                            VerticalAlignment="Center"
+                           FontSize="26"
+                           FontWeight="Bold"
+                           Text="Логотип" />
+
+                <TextBlock x:Name="SectionTitleTextBlock"
+                           Grid.Column="1"
+                           VerticalAlignment="Center"
+                           FontSize="22"
+                           FontWeight="SemiBold"
+                           Text="Главная" />
+
+                <TextBox x:Name="SearchTextBox"
+                         Grid.Column="2"
+                         Watermark="Поиск" />
+
+                <Button x:Name="NotificationsButton"
+                        Grid.Column="3"
+                        Click="NotificationsButton_OnClick"
+                        Content="Уведомления" />
+
+                <TextBlock x:Name="CurrentUserTextBlock"
+                           Grid.Column="4"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           FontSize="18"
                            Text="Пользователь не авторизован" />
-                <Button Grid.Column="4"
-                        MinWidth="120"
-                        Click="LoginButton_OnClick"
-                        Content="Войти" />
-                <Button Grid.Column="5"
-                        MinWidth="160"
-                        Click="RefreshAllButton_OnClick"
-                        Content="Обновить все" />
 
                 <TextBlock x:Name="StatusTextBlock"
                            Grid.Row="1"
-                           Grid.ColumnSpan="6"
+                           Grid.ColumnSpan="5"
                            Text="Готово к работе" />
             </Grid>
         </Border>
 
-        <TabControl Grid.Row="2">
-            <TabItem Header="Технолог">
-                <TabControl Margin="0,8,0,0">
-                    <TabItem Header="Справочники">
-                        <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,*,*" ColumnSpacing="12" RowSpacing="12">
-                            <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="12">
-                                <Button Click="LoadCatalogsButton_OnClick" Content="Загрузить справочники" />
-                            </StackPanel>
+        <Grid Grid.Row="1" Margin="0,12,0,0" ColumnDefinitions="260,*" ColumnSpacing="12">
+            <Border Padding="12" BorderThickness="1">
+                <ScrollViewer>
+                    <Grid>
+                        <StackPanel x:Name="TechnologistMenuPanel" Spacing="8">
+                            <Button Classes="nav-button" Click="HomeSectionButton_OnClick" Content="Главная" />
+                            <Button Classes="nav-button" Click="ProductsSectionButton_OnClick" Content="Продукция" />
+                            <Button Classes="nav-button" Click="RecipesSectionButton_OnClick" Content="Рецептуры" />
+                            <Button Classes="nav-button" Click="TechnologyCardsSectionButton_OnClick" Content="Техкарты" />
+                            <Button Classes="nav-button" Click="OrdersSectionButton_OnClick" Content="Заказы" />
+                            <Button Classes="nav-button" Click="BatchesSectionButton_OnClick" Content="Партии" />
+                            <Button Classes="nav-button" Click="ExtruderSectionButton_OnClick" Content="Экструдер" />
+                            <Button Classes="nav-button" Click="EventsSectionButton_OnClick" Content="События" />
+                            <Button Classes="nav-button" Click="ReportsSectionButton_OnClick" Content="Отчеты" />
+                        </StackPanel>
 
-                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
-                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Продукция" />
-                                <DataGrid x:Name="ProductsGrid" AutoGenerateColumns="True" Height="260" />
-                            </StackPanel>
+                        <StackPanel x:Name="LaboratoryMenuPanel" IsVisible="False" Spacing="8">
+                            <Button Classes="nav-button" Click="HomeSectionButton_OnClick" Content="Главная" />
+                            <Button Classes="nav-button" Click="LabLotsSectionButton_OnClick" Content="Партии сырья" />
+                            <Button Classes="nav-button" Click="LabSpecificationsSectionButton_OnClick" Content="Спецификации" />
+                            <Button Classes="nav-button" Click="LabTestsSectionButton_OnClick" Content="Испытания" />
+                            <Button Classes="nav-button" Click="LabHistorySectionButton_OnClick" Content="История" />
+                            <Button Classes="nav-button" Click="ReportsSectionButton_OnClick" Content="Отчеты" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </Border>
 
-                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8">
-                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Сырье" />
-                                <DataGrid x:Name="RawMaterialsGrid" AutoGenerateColumns="True" Height="260" />
-                            </StackPanel>
+            <Border Grid.Column="1" Padding="12" BorderThickness="1">
+                <Grid>
+                    <ScrollViewer x:Name="HomeSection" IsVisible="True">
+                        <StackPanel Spacing="14">
+                            <TextBlock FontSize="24" FontWeight="Bold" Text="Главная" />
+                            <TextBlock Text="Рабочий desktop-клиент для технолога и лаборатории по заданию WSR-2026." />
+                            <TextBlock Text="Сначала выполните вход, затем загрузите данные и переходите в нужный раздел." />
 
-                            <StackPanel Grid.Row="1" Grid.Column="2" Spacing="8">
-                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Линии" />
-                                <DataGrid x:Name="ProductionLinesGrid" AutoGenerateColumns="True" Height="260" />
-                            </StackPanel>
-                        </Grid>
-                    </TabItem>
+                            <Border Padding="12" BorderThickness="1">
+                                <Grid ColumnDefinitions="2*,1.2*,1.2*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                                    <TextBox x:Name="ApiUrlTextBox"
+                                             Grid.Column="0"
+                                             Watermark="Адрес API"
+                                             Text="http://localhost:5114" />
+                                    <TextBox x:Name="LoginTextBox"
+                                             Grid.Column="1"
+                                             Watermark="Логин"
+                                             Text="technologist1" />
+                                    <TextBox x:Name="PasswordTextBox"
+                                             Grid.Column="2"
+                                             Watermark="Пароль"
+                                             Text="12345" />
+                                    <Button Grid.Column="3"
+                                            MinWidth="140"
+                                            Click="LoginButton_OnClick"
+                                            Content="Войти" />
+                                    <Button Grid.Column="4"
+                                            MinWidth="160"
+                                            Click="RefreshAllButton_OnClick"
+                                            Content="Обновить все" />
 
-                    <TabItem Header="Рецептуры">
-                        <Grid ColumnDefinitions="1.3*,1*" ColumnSpacing="12">
-                            <Grid RowDefinitions="Auto,*,Auto" Grid.Column="0" RowSpacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button Click="LoadRecipesButton_OnClick" Content="Загрузить рецептуры" />
-                                    <Button Click="ApproveRecipeButton_OnClick" Content="Утвердить выбранную" />
-                                </StackPanel>
+                                    <TextBlock Grid.Row="1"
+                                               Grid.ColumnSpan="5"
+                                               Text="После входа открывайте разделы слева." />
+                                </Grid>
+                            </Border>
 
-                                <DataGrid x:Name="RecipesGrid"
-                                          Grid.Row="1"
-                                          AutoGenerateColumns="True"
-                                          SelectionChanged="RecipesGrid_OnSelectionChanged" />
-
-                                <TextBox x:Name="RecipeDetailTextBox"
-                                         Grid.Row="2"
-                                         Height="220"
-                                         IsReadOnly="True"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
- />
-                            </Grid>
-
-                            <ScrollViewer Grid.Column="1">
-                                <StackPanel Spacing="10">
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать черновик рецептуры" />
-                                    <TextBlock Text="Компоненты: rawMaterialId;percentage;loadOrder;allowedDeviation" />
-                                    <TextBox x:Name="RecipeProductIdTextBox" Watermark="ProductId" Text="1" />
-                                    <TextBox x:Name="RecipeNotesTextBox" Watermark="Примечание" />
-                                    <TextBox x:Name="RecipeComponentsTextBox"
-                                             Height="240"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-
-                                             Watermark="1;60;1;2&#10;2;30;2;2&#10;3;10;3;1" />
-                                    <Button Click="CreateRecipeButton_OnClick" Content="Создать черновик" />
-
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Утверждение" />
-                                    <TextBlock Text="Утверждается выбранная строка из таблицы слева." />
-                                    <TextBox x:Name="RecipeApproveCommentTextBox" Watermark="Комментарий к утверждению" />
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Grid>
-                    </TabItem>
-
-                    <TabItem Header="Техкарты">
-                        <Grid ColumnDefinitions="1.3*,1*" ColumnSpacing="12">
-                            <Grid RowDefinitions="Auto,*,Auto" Grid.Column="0" RowSpacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button Click="LoadTechnologyCardsButton_OnClick" Content="Загрузить техкарты" />
-                                    <Button Click="ApproveTechnologyCardButton_OnClick" Content="Утвердить выбранную" />
-                                </StackPanel>
-
-                                <DataGrid x:Name="TechnologyCardsGrid"
-                                          Grid.Row="1"
-                                          AutoGenerateColumns="True"
-                                          SelectionChanged="TechnologyCardsGrid_OnSelectionChanged" />
-
-                                <TextBox x:Name="TechnologyCardDetailTextBox"
-                                         Grid.Row="2"
-                                         Height="220"
-                                         IsReadOnly="True"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
- />
-                            </Grid>
-
-                            <ScrollViewer Grid.Column="1">
-                                <StackPanel Spacing="10">
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать черновик техкарты" />
-                                    <TextBlock Text="Шаги: stepOrder;stepType;title;isRequired;durationMinutes;instruction" />
-                                    <TextBlock Text="Параметры: stepOrder;name;valueType;unit;targetNumeric;min;max;targetText;targetBool;isRequired;comment" />
-                                    <TextBox x:Name="TechnologyCardProductIdTextBox" Watermark="ProductId" Text="1" />
-                                    <TextBox x:Name="TechnologyCardTitleTextBox" Watermark="Заголовок техкарты" />
-                                    <TextBox x:Name="TechnologyCardDescriptionTextBox" Watermark="Описание" />
-                                    <TextBox x:Name="TechnologyCardStepsTextBox"
-                                             Height="180"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-
-                                             Watermark="1;1;Дозирование;true;20;Подготовить компоненты&#10;2;2;Смешивание;true;40;Смешать до однородности" />
-                                    <TextBox x:Name="TechnologyCardParametersTextBox"
-                                             Height="180"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-
-                                             Watermark="2;Температура;1;C;45;40;50;;;true;Рабочий диапазон" />
-                                    <Button Click="CreateTechnologyCardButton_OnClick" Content="Создать черновик" />
-
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Утверждение" />
-                                    <TextBlock Text="Утверждается выбранная строка из таблицы слева." />
-                                    <TextBox x:Name="TechnologyCardApproveCommentTextBox" Watermark="Комментарий к утверждению" />
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Grid>
-                    </TabItem>
-
-                    <TabItem Header="Производство">
-                        <Grid ColumnDefinitions="1.2*,1.2*,1*" ColumnSpacing="12">
-                            <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button Click="LoadProductionButton_OnClick" Content="Загрузить заказы и партии" />
-                                    <Button Click="CreateOrderButton_OnClick" Content="Создать заказ" />
-                                </StackPanel>
-                                <DataGrid x:Name="OrdersGrid" Grid.Row="1" AutoGenerateColumns="True" />
-                                <StackPanel Grid.Row="2" Spacing="8">
-                                    <TextBlock FontWeight="SemiBold" Text="Новый заказ" />
-                                    <TextBox x:Name="OrderProductIdTextBox" Watermark="ProductId" Text="1" />
-                                    <TextBox x:Name="OrderLineIdTextBox" Watermark="ProductionLineId" Text="1" />
-                                    <TextBox x:Name="OrderQuantityTextBox" Watermark="PlannedQuantity" Text="100" />
-                                    <TextBox x:Name="OrderPlannedStartTextBox" Watermark="PlannedStartAt, пример: 2026-04-08T10:00:00Z" />
-                                </StackPanel>
-                            </Grid>
-
-                            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button Click="CreateBatchButton_OnClick" Content="Создать партию" />
-                                    <Button Click="StartBatchButton_OnClick" Content="Старт партии" />
-                                    <Button Click="CompleteBatchButton_OnClick" Content="Завершить партию" />
-                                </StackPanel>
-                                <DataGrid x:Name="BatchesGrid"
-                                          Grid.Row="1"
-                                          AutoGenerateColumns="True"
-                                          SelectionChanged="BatchesGrid_OnSelectionChanged" />
-                                <ScrollViewer Grid.Row="2">
+                            <Grid ColumnDefinitions="1.2*,1*" ColumnSpacing="12">
+                                <Border Grid.Column="0" Padding="12" BorderThickness="1">
                                     <StackPanel Spacing="8">
-                                        <TextBlock FontWeight="SemiBold" Text="Новая партия" />
-                                        <TextBlock Text="Расход: rawMaterialLotId;quantityUsed" />
-                                        <TextBox x:Name="BatchOrderIdTextBox" Watermark="ProductionOrderId (необязательно)" />
-                                        <TextBox x:Name="BatchProductIdTextBox" Watermark="ProductId" Text="1" />
-                                        <TextBox x:Name="BatchLineIdTextBox" Watermark="ProductionLineId" Text="1" />
-                                        <TextBox x:Name="BatchRecipeIdTextBox" Watermark="RecipeVersionId" Text="1" />
-                                        <TextBox x:Name="BatchTechnologyCardIdTextBox" Watermark="TechnologyCardId" Text="1" />
-                                        <TextBox x:Name="BatchExtruderProgramIdTextBox" Watermark="ExtruderProgramId (необязательно)" />
-                                        <TextBox x:Name="BatchQuantityTextBox" Watermark="PlannedQuantity" Text="100" />
-                                        <TextBox x:Name="BatchConsumptionsTextBox"
-                                                 Height="120"
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Сводка по системе" />
+                                        <TextBox x:Name="HomeSummaryTextBox"
+                                                 MinHeight="260"
+                                                 IsReadOnly="True"
                                                  AcceptsReturn="True"
                                                  TextWrapping="Wrap"
-
-                                                 Watermark="1;120&#10;2;60&#10;3;20" />
+                                                 Text="Авторизуйтесь и загрузите данные." />
                                     </StackPanel>
-                                </ScrollViewer>
+                                </Border>
+
+                                <Border Grid.Column="1" Padding="12" BorderThickness="1">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Быстрые переходы" />
+
+                                        <StackPanel x:Name="HomeTechnologistActionsPanel" Spacing="8">
+                                            <Button HorizontalContentAlignment="Left" Click="ProductsSectionButton_OnClick" Content="Открыть продукцию" />
+                                            <Button HorizontalContentAlignment="Left" Click="RecipesSectionButton_OnClick" Content="Открыть рецептуры" />
+                                            <Button HorizontalContentAlignment="Left" Click="TechnologyCardsSectionButton_OnClick" Content="Открыть техкарты" />
+                                            <Button HorizontalContentAlignment="Left" Click="OrdersSectionButton_OnClick" Content="Открыть заказы" />
+                                            <Button HorizontalContentAlignment="Left" Click="BatchesSectionButton_OnClick" Content="Открыть партии" />
+                                            <Button HorizontalContentAlignment="Left" Click="EventsSectionButton_OnClick" Content="Открыть события" />
+                                            <Button HorizontalContentAlignment="Left" Click="ReportsSectionButton_OnClick" Content="Открыть отчеты" />
+                                        </StackPanel>
+
+                                        <StackPanel x:Name="HomeLaboratoryActionsPanel" IsVisible="False" Spacing="8">
+                                            <Button HorizontalContentAlignment="Left" Click="LabLotsSectionButton_OnClick" Content="Открыть партии сырья" />
+                                            <Button HorizontalContentAlignment="Left" Click="LabSpecificationsSectionButton_OnClick" Content="Открыть спецификации" />
+                                            <Button HorizontalContentAlignment="Left" Click="LabTestsSectionButton_OnClick" Content="Открыть испытания" />
+                                            <Button HorizontalContentAlignment="Left" Click="LabHistorySectionButton_OnClick" Content="Открыть историю" />
+                                            <Button HorizontalContentAlignment="Left" Click="ReportsSectionButton_OnClick" Content="Открыть отчеты" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
 
-                            <ScrollViewer Grid.Column="2">
+                    <Grid x:Name="ProductsSection" IsVisible="False" RowDefinitions="Auto,*" ColumnDefinitions="*,*,*" ColumnSpacing="12" RowSpacing="12">
+                        <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="12">
+                            <Button Click="LoadCatalogsButton_OnClick" Content="Загрузить данные" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Продукция" />
+                            <DataGrid x:Name="ProductsGrid"
+                                      AutoGenerateColumns="True"
+                                      Height="260"
+                                      SelectionChanged="ProductsGrid_OnSelectionChanged" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8">
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Сырье" />
+                            <DataGrid x:Name="RawMaterialsGrid"
+                                      AutoGenerateColumns="True"
+                                      Height="260" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="2" Spacing="8">
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Производственные линии" />
+                            <DataGrid x:Name="ProductionLinesGrid"
+                                      AutoGenerateColumns="True"
+                                      Height="260"
+                                      SelectionChanged="ProductionLinesGrid_OnSelectionChanged" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="RecipesSection" IsVisible="False" ColumnDefinitions="1.3*,1*" ColumnSpacing="12">
+                        <Grid RowDefinitions="Auto,*,Auto" Grid.Column="0" RowSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Click="LoadRecipesButton_OnClick" Content="Загрузить рецептуры" />
+                                <Button Click="ApproveRecipeButton_OnClick" Content="Утвердить выбранную" />
+                            </StackPanel>
+
+                            <DataGrid x:Name="RecipesGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="True"
+                                      SelectionChanged="RecipesGrid_OnSelectionChanged" />
+
+                            <TextBox x:Name="RecipeDetailTextBox"
+                                     Grid.Row="2"
+                                     Height="220"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap" />
+                        </Grid>
+
+                        <ScrollViewer Grid.Column="1">
+                            <StackPanel Spacing="10">
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать черновик рецептуры" />
+                                <TextBlock Text="Компоненты: rawMaterialId;percentage;loadOrder;allowedDeviation" />
+                                <TextBox x:Name="RecipeProductIdTextBox" Watermark="Код продукции" Text="1" />
+                                <TextBox x:Name="RecipeNotesTextBox" Watermark="Примечание" />
+                                <TextBox x:Name="RecipeComponentsTextBox"
+                                         Height="240"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Watermark="1;60;1;2&#10;2;30;2;2&#10;3;10;3;1" />
+                                <Button Click="CreateRecipeButton_OnClick" Content="Создать черновик" />
+
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Утверждение" />
+                                <TextBlock Text="Утверждается выбранная строка из таблицы слева." />
+                                <TextBox x:Name="RecipeApproveCommentTextBox" Watermark="Комментарий к утверждению" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <Grid x:Name="TechnologyCardsSection" IsVisible="False" ColumnDefinitions="1.3*,1*" ColumnSpacing="12">
+                        <Grid RowDefinitions="Auto,*,Auto" Grid.Column="0" RowSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Click="LoadTechnologyCardsButton_OnClick" Content="Загрузить техкарты" />
+                                <Button Click="ApproveTechnologyCardButton_OnClick" Content="Утвердить выбранную" />
+                            </StackPanel>
+
+                            <DataGrid x:Name="TechnologyCardsGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="True"
+                                      SelectionChanged="TechnologyCardsGrid_OnSelectionChanged" />
+
+                            <TextBox x:Name="TechnologyCardDetailTextBox"
+                                     Grid.Row="2"
+                                     Height="220"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap" />
+                        </Grid>
+
+                        <ScrollViewer Grid.Column="1">
+                            <StackPanel Spacing="10">
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать черновик техкарты" />
+                                <TextBlock Text="Шаги: stepOrder;stepType;title;isRequired;durationMinutes;instruction" />
+                                <TextBlock Text="Параметры: stepOrder;name;valueType;unit;targetNumeric;min;max;targetText;targetBool;isRequired;comment" />
+                                <TextBox x:Name="TechnologyCardProductIdTextBox" Watermark="Код продукции" Text="1" />
+                                <TextBox x:Name="TechnologyCardTitleTextBox" Watermark="Название техкарты" />
+                                <TextBox x:Name="TechnologyCardDescriptionTextBox" Watermark="Описание" />
+                                <TextBox x:Name="TechnologyCardStepsTextBox"
+                                         Height="180"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Watermark="1;1;Дозирование;true;20;Подготовить компоненты&#10;2;2;Смешивание;true;40;Смешать до однородности" />
+                                <TextBox x:Name="TechnologyCardParametersTextBox"
+                                         Height="180"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Watermark="2;Температура;1;C;45;40;50;;;true;Рабочий диапазон" />
+                                <Button Click="CreateTechnologyCardButton_OnClick" Content="Создать черновик" />
+
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Утверждение" />
+                                <TextBlock Text="Утверждается выбранная строка из таблицы слева." />
+                                <TextBox x:Name="TechnologyCardApproveCommentTextBox" Watermark="Комментарий к утверждению" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <Grid x:Name="OrdersSection" IsVisible="False" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Click="LoadProductionButton_OnClick" Content="Загрузить заказы" />
+                            <Button Click="CreateOrderButton_OnClick" Content="Создать заказ" />
+                        </StackPanel>
+
+                        <DataGrid x:Name="OrdersGrid"
+                                  Grid.Row="1"
+                                  AutoGenerateColumns="True"
+                                  SelectionChanged="OrdersGrid_OnSelectionChanged" />
+
+                        <Border Grid.Row="2" Padding="12" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock FontWeight="SemiBold" Text="Новый заказ" />
+                                <TextBox x:Name="OrderProductIdTextBox" Watermark="Код продукции" Text="1" />
+                                <TextBox x:Name="OrderLineIdTextBox" Watermark="Код линии" Text="1" />
+                                <TextBox x:Name="OrderQuantityTextBox" Watermark="Плановое количество" Text="100" />
+                                <TextBox x:Name="OrderPlannedStartTextBox" Watermark="Плановая дата запуска, пример: 2026-04-08T10:00:00Z" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Grid x:Name="BatchesSection" IsVisible="False" ColumnDefinitions="1.2*,1.2*,1*" ColumnSpacing="12">
+                        <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Click="LoadProductionButton_OnClick" Content="Загрузить партии" />
+                                <Button Click="CreateBatchButton_OnClick" Content="Создать партию" />
+                            </StackPanel>
+
+                            <DataGrid x:Name="BatchesGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="True"
+                                      SelectionChanged="BatchesGrid_OnSelectionChanged" />
+
+                            <ScrollViewer Grid.Row="2">
                                 <StackPanel Spacing="8">
-                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="Шаги выбранной партии" />
-                                    <Button Click="LoadBatchStepsButton_OnClick" Content="Загрузить шаги выбранной партии" />
-                                    <DataGrid x:Name="BatchStepsGrid" AutoGenerateColumns="True" Height="240" />
-
-                                    <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Действия по шагу" />
-                                    <TextBox x:Name="StepCommentTextBox" Watermark="Комментарий к старту или завершению" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button Click="StartStepButton_OnClick" Content="Старт шага" />
-                                        <Button Click="CompleteStepButton_OnClick" Content="Завершить шаг" />
-                                    </StackPanel>
-
-                                    <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Фактическое значение" />
-                                    <TextBox x:Name="MeasurementParameterIdTextBox" Watermark="TechnologyStepParameterId" />
-                                    <TextBox x:Name="MeasurementNumericTextBox" Watermark="ActualNumericValue" />
-                                    <TextBox x:Name="MeasurementTextTextBox" Watermark="ActualTextValue" />
-                                    <TextBox x:Name="MeasurementBooleanTextBox" Watermark="ActualBooleanValue: true/false" />
-                                    <TextBox x:Name="MeasurementCommentTextBox" Watermark="Комментарий" />
-                                    <Button Click="AddMeasurementButton_OnClick" Content="Записать факт" />
-
-                                    <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Отклонение" />
-                                    <TextBox x:Name="DeviationTitleTextBox" Watermark="Название отклонения" />
-                                    <TextBox x:Name="DeviationParameterTextBox" Watermark="ParameterName" />
-                                    <TextBox x:Name="DeviationPlannedValueTextBox" Watermark="PlannedValue" />
-                                    <TextBox x:Name="DeviationActualValueTextBox" Watermark="ActualValue" />
-                                    <TextBox x:Name="DeviationSeverityTextBox" Watermark="Severity" Text="2" />
-                                    <TextBox x:Name="DeviationDetailsTextBox"
-                                             Height="100"
+                                    <TextBlock FontWeight="SemiBold" Text="Новая партия" />
+                                    <TextBlock Text="Расход: rawMaterialLotId;quantityUsed" />
+                                    <TextBox x:Name="BatchOrderIdTextBox" Watermark="Код заказа (необязательно)" />
+                                    <TextBox x:Name="BatchProductIdTextBox" Watermark="Код продукции" Text="1" />
+                                    <TextBox x:Name="BatchLineIdTextBox" Watermark="Код линии" Text="1" />
+                                    <TextBox x:Name="BatchRecipeIdTextBox" Watermark="Код рецептуры" Text="1" />
+                                    <TextBox x:Name="BatchTechnologyCardIdTextBox" Watermark="Код техкарты" Text="1" />
+                                    <TextBox x:Name="BatchExtruderProgramIdTextBox" Watermark="Код программы экструдера (необязательно)" />
+                                    <TextBox x:Name="BatchQuantityTextBox" Watermark="Плановое количество" Text="100" />
+                                    <TextBox x:Name="BatchConsumptionsTextBox"
+                                             Height="120"
                                              AcceptsReturn="True"
                                              TextWrapping="Wrap"
-
-                                             Watermark="Описание отклонения" />
-                                    <Button Click="AddDeviationButton_OnClick" Content="Создать отклонение" />
+                                             Watermark="1;120&#10;2;60&#10;3;20" />
                                 </StackPanel>
                             </ScrollViewer>
                         </Grid>
-                    </TabItem>
-                </TabControl>
-            </TabItem>
 
-            <TabItem Header="Лаборатория">
-                <TabControl Margin="0,8,0,0">
-                    <TabItem Header="Партии сырья и нормы">
-                        <Grid ColumnDefinitions="1.2*,1*" ColumnSpacing="12" RowDefinitions="Auto,*" RowSpacing="8">
-                            <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12">
-                                <Button Click="LoadLaboratoryInputsButton_OnClick" Content="Загрузить партии сырья и спецификации" />
+                        <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Click="StartBatchButton_OnClick" Content="Старт партии" />
+                                <Button Click="CompleteBatchButton_OnClick" Content="Завершить партию" />
+                                <Button Click="LoadBatchStepsButton_OnClick" Content="Загрузить шаги" />
                             </StackPanel>
 
-                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
-                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Партии сырья" />
-                                <DataGrid x:Name="LaboratoryLotsGrid" AutoGenerateColumns="True" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8">
-                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Спецификации качества" />
-                                <DataGrid x:Name="SpecificationsGrid" AutoGenerateColumns="True" />
-                            </StackPanel>
+                            <DataGrid x:Name="BatchStepsGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="True" />
                         </Grid>
-                    </TabItem>
 
-                    <TabItem Header="Испытания и решения">
-                        <Grid ColumnDefinitions="1.3*,1*" ColumnSpacing="12">
-                            <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button Click="LoadTestsButton_OnClick" Content="Загрузить испытания" />
-                                    <Button Click="StartTestButton_OnClick" Content="Старт испытания" />
-                                    <Button Click="CompleteTestButton_OnClick" Content="Завершить испытание" />
+                        <ScrollViewer Grid.Column="2">
+                            <StackPanel Spacing="8">
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Действия по шагу" />
+                                <TextBox x:Name="StepCommentTextBox" Watermark="Комментарий к старту или завершению" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Click="StartStepButton_OnClick" Content="Старт шага" />
+                                    <Button Click="CompleteStepButton_OnClick" Content="Завершить шаг" />
                                 </StackPanel>
 
-                                <DataGrid x:Name="TestsGrid"
-                                          Grid.Row="1"
-                                          AutoGenerateColumns="True"
-                                          SelectionChanged="TestsGrid_OnSelectionChanged" />
+                                <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Фактическое значение" />
+                                <TextBox x:Name="MeasurementParameterIdTextBox" Watermark="Код параметра шага" />
+                                <TextBox x:Name="MeasurementNumericTextBox" Watermark="Числовое значение" />
+                                <TextBox x:Name="MeasurementTextTextBox" Watermark="Текстовое значение" />
+                                <TextBox x:Name="MeasurementBooleanTextBox" Watermark="Логическое значение: true/false" />
+                                <TextBox x:Name="MeasurementCommentTextBox" Watermark="Комментарий" />
+                                <Button Click="AddMeasurementButton_OnClick" Content="Записать факт" />
 
-                                <TextBox x:Name="TestDetailTextBox"
-                                         Grid.Row="2"
-                                         Height="220"
+                                <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Отклонение" />
+                                <TextBox x:Name="DeviationTitleTextBox" Watermark="Название отклонения" />
+                                <TextBox x:Name="DeviationParameterTextBox" Watermark="Название параметра" />
+                                <TextBox x:Name="DeviationPlannedValueTextBox" Watermark="Плановое значение" />
+                                <TextBox x:Name="DeviationActualValueTextBox" Watermark="Фактическое значение" />
+                                <TextBox x:Name="DeviationSeverityTextBox" Watermark="Уровень критичности" Text="2" />
+                                <TextBox x:Name="DeviationDetailsTextBox"
+                                         Height="100"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Watermark="Описание отклонения" />
+                                <Button Click="AddDeviationButton_OnClick" Content="Создать отклонение" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <ScrollViewer x:Name="ExtruderSection" IsVisible="False">
+                        <StackPanel Spacing="12">
+                            <TextBlock FontSize="24" FontWeight="Bold" Text="Экструдер" />
+                            <TextBlock Text="По текущему решению программа экструдера задается при создании производственной партии." />
+                            <TextBlock Text="Для партии используется поле &quot;Код программы экструдера&quot; в разделе &quot;Партии&quot;." />
+                            <TextBlock Text="Отдельное управление программами в этом desktop-клиенте пока не требуется для базовой демонстрации сценария." />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Grid x:Name="EventsSection" IsVisible="False" RowDefinitions="Auto,*" ColumnDefinitions="1.4*,1*" ColumnSpacing="12" RowSpacing="8">
+                        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12">
+                            <Button Click="LoadDeviationsButton_OnClick" Content="Загрузить события" />
+                            <Button Click="LoadCriticalDeviationsButton_OnClick" Content="Только критичные" />
+                            <Button Click="ApplyEventsSearchButton_OnClick" Content="Поиск по строке сверху" />
+                        </StackPanel>
+
+                        <DataGrid x:Name="DeviationsGrid"
+                                  Grid.Row="1"
+                                  Grid.Column="0"
+                                  AutoGenerateColumns="True"
+                                  SelectionChanged="DeviationsGrid_OnSelectionChanged" />
+
+                        <Border Grid.Row="1" Grid.Column="1" Padding="12" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Карточка события" />
+                                <TextBox x:Name="EventDetailTextBox"
+                                         MinHeight="320"
                                          IsReadOnly="True"
                                          AcceptsReturn="True"
                                          TextWrapping="Wrap"
- />
-                            </Grid>
+                                         Text="Выберите событие в таблице слева." />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
 
-                            <ScrollViewer Grid.Column="1">
-                                <StackPanel Spacing="10">
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать испытание" />
-                                    <TextBox x:Name="LabSubjectTypeTextBox" Watermark="SubjectType: 1=lot, 2=batch" Text="1" />
-                                    <TextBox x:Name="LabRawMaterialLotIdTextBox" Watermark="RawMaterialLotId" Text="1" />
-                                    <TextBox x:Name="LabProductionBatchIdTextBox" Watermark="ProductionBatchId" />
-                                    <TextBox x:Name="LabQualitySpecificationIdTextBox" Watermark="QualitySpecificationId" Text="1" />
-                                    <TextBox x:Name="LabTestKindTextBox" Watermark="TestKind" Text="Incoming inspection" />
-                                    <TextBox x:Name="LabPriorityTextBox" Watermark="Priority" Text="1" />
-                                    <TextBox x:Name="LabCreateCommentTextBox" Watermark="Комментарий" />
-                                    <Button Click="CreateTestButton_OnClick" Content="Создать испытание" />
+                    <Grid x:Name="ReportsSection" IsVisible="False" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Click="LoadReportsButton_OnClick" Content="Сводный отчет" />
+                            <Button Click="ShowBatchReportButton_OnClick" Content="Отчет по партиям" />
+                            <Button Click="ShowDeviationReportButton_OnClick" Content="Отчет по событиям" />
+                            <Button Click="ShowLaboratoryReportButton_OnClick" Content="Отчет по лаборатории" />
+                        </StackPanel>
 
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Результаты испытания" />
-                                    <TextBlock Text="Формат: parameterResultId;numeric;text;bool;comment" />
-                                    <TextBox x:Name="LabResultsTextBox"
-                                             Height="160"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
+                        <TextBox x:Name="ReportsTextBox"
+                                 Grid.Row="1"
+                                 IsReadOnly="True"
+                                 Height="200"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap" />
 
-                                             Watermark="1;98.5;;;В норме&#10;2;0.4;;;В норме" />
-                                    <Button Click="SaveResultsButton_OnClick" Content="Сохранить результаты" />
-                                    <TextBox x:Name="LabResultSummaryTextBox" Watermark="ResultSummary" />
+                        <DataGrid x:Name="ReportsGrid"
+                                  Grid.Row="2"
+                                  AutoGenerateColumns="True" />
+                    </Grid>
 
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Решение по качеству" />
-                                    <TextBox x:Name="LabDecisionStatusTextBox" Watermark="DecisionStatus: 1=release, 2=block" Text="1" />
-                                    <TextBox x:Name="LabDecisionCommentTextBox" Watermark="Комментарий" Text="Решение принято" />
-                                    <TextBox x:Name="LabDecisionBlockReasonTextBox" Watermark="BlockReason" />
-                                    <Button Click="CreateDecisionButton_OnClick" Content="Принять решение" />
-                                </StackPanel>
-                            </ScrollViewer>
+                    <Grid x:Name="LabLotsSection" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Click="LoadLaboratoryInputsButton_OnClick" Content="Загрузить партии сырья" />
+                        </StackPanel>
+
+                        <DataGrid x:Name="LaboratoryLotsGrid"
+                                  Grid.Row="1"
+                                  AutoGenerateColumns="True"
+                                  SelectionChanged="LaboratoryLotsGrid_OnSelectionChanged" />
+                    </Grid>
+
+                    <Grid x:Name="LabSpecificationsSection" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Click="LoadLaboratoryInputsButton_OnClick" Content="Загрузить спецификации" />
+                        </StackPanel>
+
+                        <DataGrid x:Name="SpecificationsGrid"
+                                  Grid.Row="1"
+                                  AutoGenerateColumns="True"
+                                  SelectionChanged="SpecificationsGrid_OnSelectionChanged" />
+                    </Grid>
+
+                    <Grid x:Name="LabTestsSection" IsVisible="False" ColumnDefinitions="1.3*,1*" ColumnSpacing="12">
+                        <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Click="LoadTestsButton_OnClick" Content="Загрузить испытания" />
+                                <Button Click="StartTestButton_OnClick" Content="Старт испытания" />
+                                <Button Click="CompleteTestButton_OnClick" Content="Завершить испытание" />
+                            </StackPanel>
+
+                            <DataGrid x:Name="TestsGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="True"
+                                      SelectionChanged="TestsGrid_OnSelectionChanged" />
+
+                            <TextBox x:Name="TestDetailTextBox"
+                                     Grid.Row="2"
+                                     Height="220"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap" />
                         </Grid>
-                    </TabItem>
-                </TabControl>
-            </TabItem>
-        </TabControl>
+
+                        <ScrollViewer Grid.Column="1">
+                            <StackPanel Spacing="10">
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Text="Создать испытание" />
+                                <TextBox x:Name="LabSubjectTypeTextBox" Watermark="Тип объекта: 1=партия сырья, 2=производственная партия" Text="1" />
+                                <TextBox x:Name="LabRawMaterialLotIdTextBox" Watermark="Код партии сырья" Text="1" />
+                                <TextBox x:Name="LabProductionBatchIdTextBox" Watermark="Код производственной партии" />
+                                <TextBox x:Name="LabQualitySpecificationIdTextBox" Watermark="Код спецификации качества" Text="1" />
+                                <TextBox x:Name="LabTestKindTextBox" Watermark="Вид испытания" Text="Входной контроль" />
+                                <TextBox x:Name="LabPriorityTextBox" Watermark="Приоритет" Text="1" />
+                                <TextBox x:Name="LabCreateCommentTextBox" Watermark="Комментарий" />
+                                <Button Click="CreateTestButton_OnClick" Content="Создать испытание" />
+
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Результаты испытания" />
+                                <TextBlock Text="Формат: parameterResultId;numeric;text;bool;comment" />
+                                <TextBox x:Name="LabResultsTextBox"
+                                         Height="160"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Watermark="1;98.5;;;В норме&#10;2;0.4;;;В норме" />
+                                <Button Click="SaveResultsButton_OnClick" Content="Сохранить результаты" />
+                                <TextBox x:Name="LabResultSummaryTextBox" Watermark="Итог испытания" />
+
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Решение по качеству" />
+                                <TextBox x:Name="LabDecisionStatusTextBox" Watermark="Статус решения: 1=выпуск, 2=блокировка" Text="1" />
+                                <TextBox x:Name="LabDecisionCommentTextBox" Watermark="Комментарий" Text="Решение принято" />
+                                <TextBox x:Name="LabDecisionBlockReasonTextBox" Watermark="Причина блокировки" />
+                                <Button Click="CreateDecisionButton_OnClick" Content="Принять решение" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <Grid x:Name="LabHistorySection" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto,*" RowSpacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Click="LoadLaboratoryHistoryButton_OnClick" Content="Загрузить историю" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="1" FontSize="18" FontWeight="SemiBold" Text="Завершенные испытания" />
+                        <DataGrid x:Name="CompletedTestsGrid"
+                                  Grid.Row="2"
+                                  AutoGenerateColumns="True"
+                                  Height="240" />
+
+                        <TextBlock Grid.Row="3" FontSize="18" FontWeight="SemiBold" Text="Решения по качеству" />
+                        <DataGrid x:Name="DecisionsGrid"
+                                  Grid.Row="4"
+                                  AutoGenerateColumns="True" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

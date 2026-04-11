@@ -7,7 +7,7 @@ namespace PlantProduction.Desktop;
 
 public sealed class DesktopApiClient
 {
-    private readonly HttpClient _httpClient = new();
+    private HttpClient _httpClient = new();
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -19,7 +19,18 @@ public sealed class DesktopApiClient
     public void SetBaseUrl(string baseUrl)
     {
         BaseUrl = baseUrl.Trim().TrimEnd('/') + "/";
-        _httpClient.BaseAddress = new Uri(BaseUrl);
+        var token = Token;
+
+        _httpClient.Dispose();
+        _httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(BaseUrl)
+        };
+
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
     }
 
     public void SetToken(string? token)
@@ -74,11 +85,13 @@ public sealed class DesktopApiClient
     public Task CompleteBatchAsync(int batchId) => PostWithoutDataAsync($"api/production/batches/{batchId}/complete", new { });
     public Task StartStepAsync(int stepRunId, StartStepRunRequest request) => PostWithoutDataAsync($"api/production/step-runs/{stepRunId}/start", request);
     public Task CompleteStepAsync(int stepRunId, CompleteStepRunRequest request) => PostWithoutDataAsync($"api/production/step-runs/{stepRunId}/complete", request);
-    public Task AddMeasurementAsync(int stepRunId, AddMeasurementRequest request) => PostWithoutDataAsync($"api/production/step-runs/{stepRunId}/measurements", request);
+    public Task<MeasurementResponse> AddMeasurementAsync(int stepRunId, AddMeasurementRequest request) => PostAsync<AddMeasurementRequest, MeasurementResponse>($"api/production/step-runs/{stepRunId}/measurements", request);
     public Task CreateDeviationAsync(CreateDeviationRequest request) => PostWithoutDataAsync("api/production/deviations", request);
+    public Task<List<DeviationItem>> GetDeviationsAsync() => GetAsync<List<DeviationItem>>("api/production/deviations");
 
     public Task<List<QualitySpecificationItem>> GetSpecificationsAsync() => GetAsync<List<QualitySpecificationItem>>("api/laboratory/specifications");
     public Task<List<LaboratoryTestItem>> GetTestsAsync() => GetAsync<List<LaboratoryTestItem>>("api/laboratory/tests");
+    public Task<List<QualityDecisionItem>> GetDecisionsAsync() => GetAsync<List<QualityDecisionItem>>("api/laboratory/decisions");
     public Task<LaboratoryTestDetail> GetTestAsync(int id) => GetAsync<LaboratoryTestDetail>($"api/laboratory/tests/{id}");
     public Task CreateTestAsync(CreateLaboratoryTestRequest request) => PostWithoutDataAsync("api/laboratory/tests", request);
     public Task StartTestAsync(int testId, int testerUserId) => PostWithoutDataAsync($"api/laboratory/tests/{testId}/start", new StartLaboratoryTestRequest

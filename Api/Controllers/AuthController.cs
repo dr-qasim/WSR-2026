@@ -24,6 +24,21 @@ public sealed class AuthController(
             return BadRequest(ApiResponse.Fail("Логин и пароль обязательны."));
         }
 
+        try
+        {
+            var databaseReady = await dbContext.Database.CanConnectAsync(cancellationToken);
+            if (!databaseReady)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    ApiResponse.Fail("Нет подключения к базе данных. Сначала запустите PostgreSQL и загрузите структуру и тестовые данные."));
+            }
+        }
+        catch
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                ApiResponse.Fail("Нет подключения к базе данных. Сначала запустите PostgreSQL и загрузите структуру и тестовые данные."));
+        }
+
         var normalizedLogin = request.Login.Trim().ToLower();
 
         var user = await dbContext.AppUsers

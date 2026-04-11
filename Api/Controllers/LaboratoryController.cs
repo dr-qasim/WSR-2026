@@ -66,6 +66,33 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
         return Ok(ApiResponse<List<LaboratoryTestItem>>.Ok(items));
     }
 
+    [HttpGet("decisions")]
+    public async Task<IActionResult> GetDecisions(CancellationToken cancellationToken)
+    {
+        var items = await dbContext.QualityDecisions
+            .AsNoTracking()
+            .OrderByDescending(x => x.DecidedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new QualityDecisionItem(
+                x.Id,
+                x.SubjectType,
+                x.RawMaterialLotId,
+                x.RawMaterialLot != null ? x.RawMaterialLot.InternalLotNumber : null,
+                x.ProductionBatchId,
+                x.ProductionBatch != null ? x.ProductionBatch.BatchNumber : null,
+                x.LaboratoryTestId,
+                x.LaboratoryTest.TestNumber,
+                x.DecisionStatus,
+                x.Comment,
+                x.BlockReason,
+                x.IsCurrent,
+                x.DecidedAt,
+                x.DecidedByUser.FullName))
+            .ToListAsync(cancellationToken);
+
+        return Ok(ApiResponse<List<QualityDecisionItem>>.Ok(items));
+    }
+
     [HttpGet("tests/{id:int}")]
     public async Task<IActionResult> GetTest(int id, CancellationToken cancellationToken)
     {
@@ -635,6 +662,22 @@ public sealed record LaboratoryTestItem(
     DateTime? StartedAt,
     DateTime? CompletedAt,
     string? TesterName);
+
+public sealed record QualityDecisionItem(
+    int Id,
+    int SubjectType,
+    int? RawMaterialLotId,
+    string? RawMaterialLotNumber,
+    int? ProductionBatchId,
+    string? ProductionBatchNumber,
+    int LaboratoryTestId,
+    string TestNumber,
+    int DecisionStatus,
+    string? Comment,
+    string? BlockReason,
+    bool IsCurrent,
+    DateTime DecidedAt,
+    string DecidedByName);
 
 public sealed record LaboratoryTestParameterResultItem(
     int Id,

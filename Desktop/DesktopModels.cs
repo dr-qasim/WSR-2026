@@ -11,6 +11,12 @@ public class ApiEnvelope<T> : ApiEnvelope
     public T? Data { get; set; }
 }
 
+public class ReportLineItem
+{
+    public string Показатель { get; set; } = string.Empty;
+    public string Значение { get; set; } = string.Empty;
+}
+
 public class LoginRequest
 {
     public string Login { get; set; } = string.Empty;
@@ -343,6 +349,12 @@ public class AddMeasurementRequest
     public string? Comment { get; set; }
 }
 
+public class MeasurementResponse
+{
+    public int Id { get; set; }
+    public bool IsWithinTolerance { get; set; }
+}
+
 public class CreateDeviationRequest
 {
     public int ProductionBatchId { get; set; }
@@ -354,6 +366,24 @@ public class CreateDeviationRequest
     public int Severity { get; set; }
     public string? Details { get; set; }
     public int? ReportedByUserId { get; set; }
+}
+
+public class DeviationItem
+{
+    public int Id { get; set; }
+    public int ProductionBatchId { get; set; }
+    public string BatchNumber { get; set; } = string.Empty;
+    public int? BatchTechnologyStepRunId { get; set; }
+    public int? StepOrder { get; set; }
+    public string? StepTitle { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? ParameterName { get; set; }
+    public string? PlannedValue { get; set; }
+    public string? ActualValue { get; set; }
+    public int Severity { get; set; }
+    public string? Details { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string? ReportedByName { get; set; }
 }
 
 public class QualitySpecificationItem
@@ -392,6 +422,24 @@ public class LaboratoryTestItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? TesterName { get; set; }
+}
+
+public class QualityDecisionItem
+{
+    public int Id { get; set; }
+    public int SubjectType { get; set; }
+    public int? RawMaterialLotId { get; set; }
+    public string? RawMaterialLotNumber { get; set; }
+    public int? ProductionBatchId { get; set; }
+    public string? ProductionBatchNumber { get; set; }
+    public int LaboratoryTestId { get; set; }
+    public string TestNumber { get; set; } = string.Empty;
+    public int DecisionStatus { get; set; }
+    public string? Comment { get; set; }
+    public string? BlockReason { get; set; }
+    public bool IsCurrent { get; set; }
+    public DateTime DecidedAt { get; set; }
+    public string DecidedByName { get; set; } = string.Empty;
 }
 
 public class LaboratoryTestParameterResultItem
