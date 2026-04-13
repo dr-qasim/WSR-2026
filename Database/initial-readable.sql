@@ -1013,6 +1013,7 @@ RETURNS trigger
 AS $$
 DECLARE
     component_total numeric(10,2);
+BEGIN
     IF NEW.status = 3 THEN
         SELECT COALESCE(SUM(percentage), 0)
         INTO component_total
@@ -1024,6 +1025,8 @@ DECLARE
                 'Cannot approve recipe version %, component total must equal 100%%. Actual total: %',
                 NEW.id,
                 component_total;
+        END IF;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1036,7 +1039,12 @@ DECLARE
     affected_recipe_version_id integer;
     current_status integer;
     component_total numeric(10,2);
+BEGIN
     affected_recipe_version_id := COALESCE(NEW.recipe_version_id, OLD.recipe_version_id);
+
+    IF affected_recipe_version_id IS NULL THEN
+        RETURN COALESCE(NEW, OLD);
+    END IF;
 
     SELECT status
     INTO current_status
@@ -1054,6 +1062,8 @@ DECLARE
                 'Approved recipe version % must keep component total equal to 100%%. Actual total: %',
                 affected_recipe_version_id,
                 component_total;
+        END IF;
+    END IF;
 
     RETURN COALESCE(NEW, OLD);
 END;
@@ -1069,6 +1079,7 @@ DECLARE
     technology_is_active boolean;
     extruder_is_active boolean;
     extruder_technology_card_id integer;
+BEGIN
     SELECT status, is_active
     INTO recipe_status, recipe_is_active
     FROM recipe_versions
@@ -1080,6 +1091,7 @@ DECLARE
             'Production batch % must use an active approved recipe version for product %',
             NEW.batch_number,
             NEW.product_id;
+    END IF;
 
     SELECT status, is_active
     INTO technology_status, technology_is_active
@@ -1092,6 +1104,7 @@ DECLARE
             'Production batch % must use an active approved technology card for product %',
             NEW.batch_number,
             NEW.product_id;
+    END IF;
 
     IF NEW.extruder_program_id IS NOT NULL THEN
         SELECT is_active, technology_card_id
@@ -1105,6 +1118,7 @@ DECLARE
                 'Production batch % must use an active extruder program for product %',
                 NEW.batch_number,
                 NEW.product_id;
+        END IF;
 
         IF extruder_technology_card_id IS NOT NULL
            AND extruder_technology_card_id <> NEW.technology_card_id THEN
@@ -1112,6 +1126,8 @@ DECLARE
                 'Extruder program % is not linked to technology card %',
                 NEW.extruder_program_id,
                 NEW.technology_card_id;
+        END IF;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1123,6 +1139,7 @@ AS $$
 DECLARE
     batch_technology_card_id integer;
     step_technology_card_id integer;
+BEGIN
     SELECT technology_card_id
     INTO batch_technology_card_id
     FROM production_batches
@@ -1138,6 +1155,7 @@ DECLARE
             'Step % does not belong to technology card of batch %',
             NEW.technology_step_id,
             NEW.production_batch_id;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1149,6 +1167,11 @@ AS $$
 DECLARE
     run_step_id integer;
     parameter_step_id integer;
+BEGIN
+    IF NEW.batch_technology_step_run_id IS NULL OR NEW.technology_step_parameter_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
     SELECT technology_step_id
     INTO run_step_id
     FROM batch_technology_step_runs
@@ -1164,6 +1187,7 @@ DECLARE
             'Measured parameter % does not belong to step run %',
             NEW.technology_step_parameter_id,
             NEW.batch_technology_step_run_id;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1174,8 +1198,10 @@ RETURNS trigger
 AS $$
 DECLARE
     run_batch_id integer;
+BEGIN
     IF NEW.batch_technology_step_run_id IS NULL THEN
         RETURN NEW;
+    END IF;
 
     SELECT production_batch_id
     INTO run_batch_id
@@ -1187,6 +1213,7 @@ DECLARE
             'Deviation step run % does not belong to production batch %',
             NEW.batch_technology_step_run_id,
             NEW.production_batch_id;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1246,8 +1273,10 @@ AS $$
 DECLARE
     batch_line_id integer;
     equipment_line_id integer;
+BEGIN
     IF NEW.equipment_id IS NULL THEN
         RETURN NEW;
+    END IF;
 
     SELECT production_line_id
     INTO batch_line_id
@@ -1264,6 +1293,7 @@ DECLARE
             'Equipment % does not belong to production line of batch %',
             NEW.equipment_id,
             NEW.production_batch_id;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1278,6 +1308,7 @@ DECLARE
     specification_subject_type integer;
     specification_raw_material_id integer;
     specification_product_id integer;
+BEGIN
     SELECT subject_type, raw_material_id, product_id
     INTO specification_subject_type, specification_raw_material_id, specification_product_id
     FROM quality_specifications
@@ -1287,6 +1318,7 @@ DECLARE
         RAISE EXCEPTION
             'Quality specification % does not exist',
             NEW.quality_specification_id;
+    END IF;
 
     IF NEW.subject_type = 1 THEN
         SELECT raw_material_id
@@ -1300,6 +1332,7 @@ DECLARE
                 'Laboratory test % uses a specification that does not match raw material lot %',
                 NEW.test_number,
                 NEW.raw_material_lot_id;
+        END IF;
     ELSIF NEW.subject_type = 2 THEN
         SELECT product_id
         INTO batch_product_id
@@ -1312,6 +1345,8 @@ DECLARE
                 'Laboratory test % uses a specification that does not match production batch %',
                 NEW.test_number,
                 NEW.production_batch_id;
+        END IF;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1323,8 +1358,10 @@ AS $$
 DECLARE
     laboratory_test_specification_id integer;
     parameter_specification_id integer;
+BEGIN
     IF NEW.quality_specification_parameter_id IS NULL THEN
         RETURN NEW;
+    END IF;
 
     SELECT quality_specification_id
     INTO laboratory_test_specification_id
@@ -1341,6 +1378,7 @@ DECLARE
             'Laboratory test parameter result % does not belong to specification of test %',
             NEW.quality_specification_parameter_id,
             NEW.laboratory_test_id;
+    END IF;
 
     RETURN NEW;
 END;
@@ -1353,6 +1391,7 @@ DECLARE
     test_subject_type integer;
     test_raw_material_lot_id integer;
     test_production_batch_id integer;
+BEGIN
     SELECT subject_type, raw_material_lot_id, production_batch_id
     INTO test_subject_type, test_raw_material_lot_id, test_production_batch_id
     FROM laboratory_tests
@@ -1362,6 +1401,7 @@ DECLARE
         RAISE EXCEPTION
             'Laboratory test % does not exist for quality decision',
             NEW.laboratory_test_id;
+    END IF;
 
     IF NEW.subject_type = 1 THEN
         IF test_subject_type <> 1
@@ -1369,12 +1409,15 @@ DECLARE
             RAISE EXCEPTION
                 'Quality decision for raw material lot % must use a matching laboratory test',
                 NEW.raw_material_lot_id;
+        END IF;
     ELSIF NEW.subject_type = 2 THEN
         IF test_subject_type <> 2
            OR test_production_batch_id IS DISTINCT FROM NEW.production_batch_id THEN
             RAISE EXCEPTION
                 'Quality decision for production batch % must use a matching laboratory test',
                 NEW.production_batch_id;
+        END IF;
+    END IF;
 
     RETURN NEW;
 END;
