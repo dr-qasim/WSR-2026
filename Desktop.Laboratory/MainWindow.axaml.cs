@@ -8,6 +8,7 @@ namespace PlantProduction.Desktop;
 
 public partial class MainWindow : Window
 {
+    private const bool LaboratoryClient = true;
     private readonly DesktopApiClient _apiClient = new();
     private readonly JsonSerializerOptions _prettyJsonOptions = new() { WriteIndented = true };
     private LoginResponse? _currentUser;
@@ -15,6 +16,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        CurrentUserTextBlock.Text = "Модуль лаборанта";
         _apiClient.SetBaseUrl(ApiUrlTextBox.Text ?? "http://localhost:5114");
         ApplyRoleLayout();
         ShowSection("Главная");
@@ -27,6 +29,17 @@ public partial class MainWindow : Window
         {
             _apiClient.SetBaseUrl(ApiUrlTextBox.Text ?? "http://localhost:5114");
             _currentUser = await _apiClient.LoginAsync(LoginTextBox.Text ?? string.Empty, PasswordTextBox.Text ?? string.Empty);
+
+            if (!string.Equals(_currentUser.RoleCode, "LAB_TECHNICIAN", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(_currentUser.RoleCode, "ADMINISTRATOR", StringComparison.OrdinalIgnoreCase))
+            {
+                _apiClient.SetToken(null);
+                _currentUser = null;
+                CurrentUserTextBlock.Text = "Модуль лаборанта";
+                SetStatus("Для этого приложения нужен вход под лаборантом.");
+                return;
+            }
+
             CurrentUserTextBlock.Text = $"{_currentUser.FullName} | {GetRoleTitle(_currentUser.RoleCode)} | {_currentUser.DepartmentName}";
             ApplyRoleLayout();
             ShowSection("Главная");
@@ -995,7 +1008,7 @@ public partial class MainWindow : Window
 
     private bool IsLaboratoryUser()
     {
-        return string.Equals(_currentUser?.RoleCode, "LAB_TECHNICIAN", StringComparison.OrdinalIgnoreCase);
+        return LaboratoryClient;
     }
 
     private void ShowSection(string sectionName)
