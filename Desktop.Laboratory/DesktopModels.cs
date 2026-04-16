@@ -71,6 +71,8 @@ public class RawMaterialLotListItem
     public string RawMaterialName { get; set; } = string.Empty;
     public int SupplierId { get; set; }
     public string SupplierName { get; set; } = string.Empty;
+    public string LaboratoryStatusText { get; set; } = string.Empty;
+    public string LaboratoryStatusMark { get; set; } = string.Empty;
 }
 
 public class ProductionLineItem
@@ -422,6 +424,9 @@ public class LaboratoryTestItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? TesterName { get; set; }
+    public string SubjectText { get; set; } = string.Empty;
+    public string ObjectNumber { get; set; } = string.Empty;
+    public string StatusText { get; set; } = string.Empty;
 }
 
 public class QualityDecisionItem
@@ -440,6 +445,9 @@ public class QualityDecisionItem
     public bool IsCurrent { get; set; }
     public DateTime DecidedAt { get; set; }
     public string DecidedByName { get; set; } = string.Empty;
+    public string SubjectText { get; set; } = string.Empty;
+    public string ObjectNumber { get; set; } = string.Empty;
+    public string DecisionStatusText { get; set; } = string.Empty;
 }
 
 public class LaboratoryTestParameterResultItem
@@ -465,6 +473,21 @@ public class LaboratoryTestDetail
 {
     public LaboratoryTestItem Test { get; set; } = new();
     public List<LaboratoryTestParameterResultItem> Results { get; set; } = new();
+}
+
+public class LaboratoryResultEditorItem
+{
+    public int ParameterResultId { get; set; }
+    public int SortOrder { get; set; }
+    public string ParameterName { get; set; } = string.Empty;
+    public int ValueType { get; set; }
+    public bool IsRequired { get; set; }
+    public string NormText { get; set; } = string.Empty;
+    public string ActualNumericText { get; set; } = string.Empty;
+    public string ActualTextValue { get; set; } = string.Empty;
+    public string ActualBooleanText { get; set; } = string.Empty;
+    public string? Comment { get; set; }
+    public string CheckText { get; set; } = string.Empty;
 }
 
 public class CreateLaboratoryTestRequest

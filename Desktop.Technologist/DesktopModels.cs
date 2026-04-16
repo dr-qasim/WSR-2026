@@ -46,6 +46,49 @@ public class ProductListItem
     public string ProductFormName { get; set; } = string.Empty;
 }
 
+public class ProductDetailHeader
+{
+    public int Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int Status { get; set; }
+    public string ProductTypeName { get; set; } = string.Empty;
+    public string ProductFormName { get; set; } = string.Empty;
+}
+
+public class ProductRecipeItem
+{
+    public int Id { get; set; }
+    public int VersionNumber { get; set; }
+    public int Status { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string CreatedByName { get; set; } = string.Empty;
+    public DateTime? ApprovedAt { get; set; }
+    public string? ApprovedByName { get; set; }
+}
+
+public class ProductTechnologyCardItem
+{
+    public int Id { get; set; }
+    public int VersionNumber { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public int Status { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string CreatedByName { get; set; } = string.Empty;
+    public DateTime? ApprovedAt { get; set; }
+    public string? ApprovedByName { get; set; }
+}
+
+public class ProductDetail
+{
+    public ProductDetailHeader Header { get; set; } = new();
+    public List<ProductRecipeItem> Recipes { get; set; } = new();
+    public List<ProductTechnologyCardItem> TechnologyCards { get; set; } = new();
+}
+
 public class RawMaterialListItem
 {
     public int Id { get; set; }

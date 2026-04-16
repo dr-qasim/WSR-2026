@@ -443,15 +443,68 @@
                                   AutoGenerateColumns="True" />
                     </Grid>
 
-                    <Grid x:Name="LabLotsSection" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="8">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <Button Click="LoadLaboratoryInputsButton_OnClick" Content="Загрузить партии сырья" />
-                        </StackPanel>
+                    <Grid x:Name="LabLotsSection" IsVisible="False" ColumnDefinitions="1.35*,1*" ColumnSpacing="12">
+                        <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Click="LoadLaboratoryInputsButton_OnClick" Content="Загрузить партии сырья" />
+                                <TextBox x:Name="LotSearchTextBox"
+                                         Width="220"
+                                         Watermark="Поиск по номеру или материалу" />
+                                <ComboBox x:Name="LotStatusFilterComboBox"
+                                          Width="180"
+                                          SelectedIndex="0">
+                                    <ComboBoxItem Content="Все партии" />
+                                    <ComboBoxItem Content="Без решения" />
+                                    <ComboBoxItem Content="Разрешенные" />
+                                    <ComboBoxItem Content="Заблокированные" />
+                                </ComboBox>
+                                <Button Click="ApplyLotFilterButton_OnClick" Content="Применить" />
+                                <Button Click="ResetLotFilterButton_OnClick" Content="Сбросить" />
+                            </StackPanel>
 
-                        <DataGrid x:Name="LaboratoryLotsGrid"
-                                  Grid.Row="1"
-                                  AutoGenerateColumns="True"
-                                  SelectionChanged="LaboratoryLotsGrid_OnSelectionChanged" />
+                            <DataGrid x:Name="LaboratoryLotsGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="False"
+                                      SelectionChanged="LaboratoryLotsGrid_OnSelectionChanged"
+                                      LoadingRow="LaboratoryLotsGrid_OnLoadingRow">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="№ партии" Binding="{ReflectionBinding InternalLotNumber}" Width="170" />
+                                    <DataGridTextColumn Header="Сырье" Binding="{ReflectionBinding RawMaterialName}" Width="220" />
+                                    <DataGridTextColumn Header="Поставщик" Binding="{ReflectionBinding SupplierName}" Width="180" />
+                                    <DataGridTextColumn Header="Поступление" Binding="{ReflectionBinding ReceivedAt}" Width="150" />
+                                    <DataGridTextColumn Header="Хранение" Binding="{ReflectionBinding StorageLocation}" Width="140" />
+                                    <DataGridTextColumn Header="Доступно" Binding="{ReflectionBinding QuantityAvailable}" Width="110" />
+                                    <DataGridTextColumn Header="Поступило" Binding="{ReflectionBinding QuantityReceived}" Width="110" />
+                                    <DataGridTextColumn Header="Лаб. статус" Binding="{ReflectionBinding LaboratoryStatusText}" Width="150" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+
+                        <Border Grid.Column="1" Padding="12" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Карточка партии сырья" />
+                                <Border x:Name="LotStatusBadgeBorder"
+                                        Padding="8"
+                                        CornerRadius="6"
+                                        Background="#D9D9D9"
+                                        HorizontalAlignment="Left">
+                                    <TextBlock x:Name="LotStatusBadgeTextBlock"
+                                               FontWeight="SemiBold"
+                                               Text="Статус не выбран" />
+                                </Border>
+                                <TextBox x:Name="LotDetailTextBox"
+                                         MinHeight="320"
+                                         IsReadOnly="True"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Text="Выберите партию сырья в таблице слева." />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Click="OpenLotCardButton_OnClick" Content="Карточка партии" />
+                                    <Button Click="OpenSelectedLotTestButton_OnClick" Content="Создать испытание" />
+                                    <Button Click="OpenLatestLotTestButton_OnClick" Content="Открыть последнее" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
 
                     <Grid x:Name="LabSpecificationsSection" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="8">
@@ -475,8 +528,21 @@
 
                             <DataGrid x:Name="TestsGrid"
                                       Grid.Row="1"
-                                      AutoGenerateColumns="True"
-                                      SelectionChanged="TestsGrid_OnSelectionChanged" />
+                                      AutoGenerateColumns="False"
+                                      SelectionChanged="TestsGrid_OnSelectionChanged">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="№ испытания" Binding="{ReflectionBinding TestNumber}" Width="150" />
+                                    <DataGridTextColumn Header="Объект" Binding="{ReflectionBinding SubjectText}" Width="120" />
+                                    <DataGridTextColumn Header="Номер объекта" Binding="{ReflectionBinding ObjectNumber}" Width="160" />
+                                    <DataGridTextColumn Header="Спецификация" Binding="{ReflectionBinding QualitySpecificationName}" Width="180" />
+                                    <DataGridTextColumn Header="Вид" Binding="{ReflectionBinding TestKind}" Width="130" />
+                                    <DataGridTextColumn Header="Статус" Binding="{ReflectionBinding StatusText}" Width="110" />
+                                    <DataGridTextColumn Header="Приоритет" Binding="{ReflectionBinding Priority}" Width="90" />
+                                    <DataGridTextColumn Header="Исполнитель" Binding="{ReflectionBinding TesterName}" Width="150" />
+                                    <DataGridTextColumn Header="Создано" Binding="{ReflectionBinding CreatedAt}" Width="150" />
+                                    <DataGridTextColumn Header="Завершено" Binding="{ReflectionBinding CompletedAt}" Width="150" />
+                                </DataGrid.Columns>
+                            </DataGrid>
 
                             <TextBox x:Name="TestDetailTextBox"
                                      Grid.Row="2"
@@ -495,16 +561,27 @@
                                 <TextBox x:Name="LabQualitySpecificationIdTextBox" Watermark="Код спецификации качества" Text="1" />
                                 <TextBox x:Name="LabTestKindTextBox" Watermark="Вид испытания" Text="Входной контроль" />
                                 <TextBox x:Name="LabPriorityTextBox" Watermark="Приоритет" Text="1" />
+                                <TextBox x:Name="LabTesterNameTextBox" IsReadOnly="True" Watermark="Исполнитель" />
+                                <TextBox x:Name="LabCreatedAtTextBox" IsReadOnly="True" Watermark="Дата создания" />
                                 <TextBox x:Name="LabCreateCommentTextBox" Watermark="Комментарий" />
                                 <Button Click="CreateTestButton_OnClick" Content="Создать испытание" />
 
                                 <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,20,0,0" Text="Результаты испытания" />
-                                <TextBlock Text="Формат: parameterResultId;numeric;text;bool;comment" />
-                                <TextBox x:Name="LabResultsTextBox"
-                                         Height="160"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         Watermark="1;98.5;;;В норме&#10;2;0.4;;;В норме" />
+                                <TextBlock Text="Выберите испытание слева и заполните фактические значения по параметрам." />
+                                <DataGrid x:Name="LabResultEditorsGrid"
+                                          Height="220"
+                                          AutoGenerateColumns="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="№" Binding="{ReflectionBinding SortOrder}" Width="50" />
+                                        <DataGridTextColumn Header="Параметр" Binding="{ReflectionBinding ParameterName}" Width="170" />
+                                        <DataGridTextColumn Header="Норма" Binding="{ReflectionBinding NormText}" Width="140" />
+                                        <DataGridTextColumn Header="Факт (число)" Binding="{ReflectionBinding ActualNumericText}" Width="110" />
+                                        <DataGridTextColumn Header="Факт (текст)" Binding="{ReflectionBinding ActualTextValue}" Width="140" />
+                                        <DataGridTextColumn Header="Факт (bool)" Binding="{ReflectionBinding ActualBooleanText}" Width="110" />
+                                        <DataGridTextColumn Header="Комментарий" Binding="{ReflectionBinding Comment}" Width="160" />
+                                        <DataGridTextColumn Header="Проверка" Binding="{ReflectionBinding CheckText}" Width="110" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
                                 <Button Click="SaveResultsButton_OnClick" Content="Сохранить результаты" />
                                 <TextBox x:Name="LabResultSummaryTextBox" Watermark="Итог испытания" />
 
@@ -517,7 +594,7 @@
                         </ScrollViewer>
                     </Grid>
 
-                    <Grid x:Name="LabHistorySection" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto,*" RowSpacing="8">
+                    <Grid x:Name="LabHistorySection" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto,*,Auto,*" RowSpacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <Button Click="LoadLaboratoryHistoryButton_OnClick" Content="Загрузить историю" />
                         </StackPanel>
@@ -525,13 +602,43 @@
                         <TextBlock Grid.Row="1" FontSize="18" FontWeight="SemiBold" Text="Завершенные испытания" />
                         <DataGrid x:Name="CompletedTestsGrid"
                                   Grid.Row="2"
-                                  AutoGenerateColumns="True"
-                                  Height="240" />
+                                  AutoGenerateColumns="False"
+                                  Height="240">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="№ испытания" Binding="{ReflectionBinding TestNumber}" Width="150" />
+                                <DataGridTextColumn Header="Объект" Binding="{ReflectionBinding SubjectText}" Width="120" />
+                                <DataGridTextColumn Header="Номер объекта" Binding="{ReflectionBinding ObjectNumber}" Width="160" />
+                                <DataGridTextColumn Header="Статус" Binding="{ReflectionBinding StatusText}" Width="110" />
+                                <DataGridTextColumn Header="Итог" Binding="{ReflectionBinding ResultSummary}" Width="220" />
+                                <DataGridTextColumn Header="Исполнитель" Binding="{ReflectionBinding TesterName}" Width="150" />
+                                <DataGridTextColumn Header="Завершено" Binding="{ReflectionBinding CompletedAt}" Width="150" />
+                            </DataGrid.Columns>
+                        </DataGrid>
 
                         <TextBlock Grid.Row="3" FontSize="18" FontWeight="SemiBold" Text="Решения по качеству" />
                         <DataGrid x:Name="DecisionsGrid"
                                   Grid.Row="4"
-                                  AutoGenerateColumns="True" />
+                                  AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Объект" Binding="{ReflectionBinding SubjectText}" Width="120" />
+                                <DataGridTextColumn Header="Номер объекта" Binding="{ReflectionBinding ObjectNumber}" Width="160" />
+                                <DataGridTextColumn Header="Испытание" Binding="{ReflectionBinding TestNumber}" Width="150" />
+                                <DataGridTextColumn Header="Решение" Binding="{ReflectionBinding DecisionStatusText}" Width="110" />
+                                <DataGridTextColumn Header="Текущее" Binding="{ReflectionBinding IsCurrent}" Width="90" />
+                                <DataGridTextColumn Header="Комментарий" Binding="{ReflectionBinding Comment}" Width="180" />
+                                <DataGridTextColumn Header="Причина" Binding="{ReflectionBinding BlockReason}" Width="180" />
+                                <DataGridTextColumn Header="Дата" Binding="{ReflectionBinding DecidedAt}" Width="150" />
+                                <DataGridTextColumn Header="Кто принял" Binding="{ReflectionBinding DecidedByName}" Width="150" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Grid.Row="5" FontSize="18" FontWeight="SemiBold" Text="Хронология лаборатории" />
+                        <TextBox x:Name="LaboratoryHistoryTextBox"
+                                 Grid.Row="6"
+                                 MinHeight="180"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap" />
                     </Grid>
                 </Grid>
             </Border>

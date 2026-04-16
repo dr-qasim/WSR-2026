@@ -30,6 +30,61 @@ public sealed class CatalogController(PlantProductionScaffoldDbContext dbContext
         return Ok(ApiResponse<List<ProductListItem>>.Ok(items));
     }
 
+    [HttpGet("products/{id:int}")]
+    public async Task<IActionResult> GetProduct(int id, CancellationToken cancellationToken)
+    {
+        var header = await dbContext.Products
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new ProductDetailHeader(
+                x.Id,
+                x.Code,
+                x.Name,
+                x.Description,
+                x.Status,
+                x.ProductType.Name,
+                x.ProductForm.Name))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (header is null)
+        {
+            return NotFound(ApiResponse.Fail("Продукт не найден."));
+        }
+
+        var recipes = await dbContext.RecipeVersions
+            .AsNoTracking()
+            .Where(x => x.ProductId == id)
+            .OrderByDescending(x => x.VersionNumber)
+            .Select(x => new ProductRecipeItem(
+                x.Id,
+                x.VersionNumber,
+                x.Status,
+                x.IsActive,
+                x.CreatedAt,
+                x.CreatedByUser.FullName,
+                x.ApprovedAt,
+                x.ApprovedByUser != null ? x.ApprovedByUser.FullName : null))
+            .ToListAsync(cancellationToken);
+
+        var technologyCards = await dbContext.TechnologyCards
+            .AsNoTracking()
+            .Where(x => x.ProductId == id)
+            .OrderByDescending(x => x.VersionNumber)
+            .Select(x => new ProductTechnologyCardItem(
+                x.Id,
+                x.VersionNumber,
+                x.Title,
+                x.Status,
+                x.IsActive,
+                x.CreatedAt,
+                x.CreatedByUser.FullName,
+                x.ApprovedAt,
+                x.ApprovedByUser != null ? x.ApprovedByUser.FullName : null))
+            .ToListAsync(cancellationToken);
+
+        return Ok(ApiResponse<ProductDetail>.Ok(new ProductDetail(header, recipes, technologyCards)));
+    }
+
     [HttpGet("raw-materials")]
     public async Task<IActionResult> GetRawMaterials(CancellationToken cancellationToken)
     {
@@ -98,6 +153,41 @@ public sealed class CatalogController(PlantProductionScaffoldDbContext dbContext
         int Status,
         string ProductTypeName,
         string ProductFormName);
+
+    public sealed record ProductDetailHeader(
+        int Id,
+        string Code,
+        string Name,
+        string? Description,
+        int Status,
+        string ProductTypeName,
+        string ProductFormName);
+
+    public sealed record ProductRecipeItem(
+        int Id,
+        int VersionNumber,
+        int Status,
+        bool IsActive,
+        DateTime CreatedAt,
+        string CreatedByName,
+        DateTime? ApprovedAt,
+        string? ApprovedByName);
+
+    public sealed record ProductTechnologyCardItem(
+        int Id,
+        int VersionNumber,
+        string Title,
+        int Status,
+        bool IsActive,
+        DateTime CreatedAt,
+        string CreatedByName,
+        DateTime? ApprovedAt,
+        string? ApprovedByName);
+
+    public sealed record ProductDetail(
+        ProductDetailHeader Header,
+        List<ProductRecipeItem> Recipes,
+        List<ProductTechnologyCardItem> TechnologyCards);
 
     public sealed record RawMaterialListItem(
         int Id,

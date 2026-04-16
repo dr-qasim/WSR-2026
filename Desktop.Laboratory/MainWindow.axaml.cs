@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 
 namespace PlantProduction.Desktop;
 
@@ -11,6 +12,11 @@ public partial class MainWindow : Window
     private const bool LaboratoryClient = true;
     private readonly DesktopApiClient _apiClient = new();
     private readonly JsonSerializerOptions _prettyJsonOptions = new() { WriteIndented = true };
+    private List<RawMaterialLotListItem> _allLaboratoryLots = new();
+    private List<QualitySpecificationItem> _allSpecifications = new();
+    private List<LaboratoryTestItem> _allTests = new();
+    private List<QualityDecisionItem> _allDecisions = new();
+    private List<LaboratoryResultEditorItem> _currentResultEditors = new();
     private LoginResponse? _currentUser;
 
     public MainWindow()
@@ -20,6 +26,7 @@ public partial class MainWindow : Window
         _apiClient.SetBaseUrl(ApiUrlTextBox.Text ?? "http://localhost:5114");
         ApplyRoleLayout();
         ShowSection("Главная");
+        UpdateLaboratoryFormInfo();
         UpdateHomeDashboard();
     }
 
@@ -43,6 +50,7 @@ public partial class MainWindow : Window
             CurrentUserTextBlock.Text = $"{_currentUser.FullName} | {GetRoleTitle(_currentUser.RoleCode)} | {_currentUser.DepartmentName}";
             ApplyRoleLayout();
             ShowSection("Главная");
+            UpdateLaboratoryFormInfo();
             SetStatus($"Авторизация выполнена: {_currentUser.Login}");
             await RefreshAllAsync();
         }
@@ -96,6 +104,81 @@ public partial class MainWindow : Window
     private void LabSpecificationsSectionButton_OnClick(object? sender, RoutedEventArgs e) => ShowSection("Спецификации");
     private void LabTestsSectionButton_OnClick(object? sender, RoutedEventArgs e) => ShowSection("Испытания");
     private void LabHistorySectionButton_OnClick(object? sender, RoutedEventArgs e) => ShowSection("История");
+
+    private void ApplyLotFilterButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        ApplyLotFilter();
+        SetStatus("Фильтр по партиям сырья применен.");
+    }
+
+    private void ResetLotFilterButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        LotSearchTextBox.Text = string.Empty;
+        LotStatusFilterComboBox.SelectedIndex = 0;
+        ApplyLotFilter();
+        SetStatus("Фильтр по партиям сырья сброшен.");
+    }
+
+    private void OpenSelectedLotTestButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (LaboratoryLotsGrid.SelectedItem is not RawMaterialLotListItem item)
+        {
+            SetStatus("Сначала выберите партию сырья.");
+            return;
+        }
+
+        FillCreateTestFromLot(item);
+        ShowSection("Испытания");
+        SetStatus("Форма испытания заполнена по выбранной партии сырья.");
+    }
+
+    private async void OpenLotCardButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (LaboratoryLotsGrid.SelectedItem is not RawMaterialLotListItem item)
+        {
+            SetStatus("Сначала выберите партию сырья.");
+            return;
+        }
+
+        var tests = _allTests
+            .Where(x => x.RawMaterialLotId == item.Id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToList();
+
+        var decisions = _allDecisions
+            .Where(x => x.RawMaterialLotId == item.Id)
+            .OrderByDescending(x => x.DecidedAt)
+            .ToList();
+
+        var window = new RawMaterialLotCardWindow(item, tests, decisions);
+        await window.ShowDialog(this);
+    }
+
+    private void OpenLatestLotTestButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (LaboratoryLotsGrid.SelectedItem is not RawMaterialLotListItem item)
+        {
+            SetStatus("Сначала выберите партию сырья.");
+            return;
+        }
+
+        var test = _allTests
+            .Where(x => x.RawMaterialLotId == item.Id)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault();
+
+        if (test is null)
+        {
+            FillCreateTestFromLot(item);
+            ShowSection("Испытания");
+            SetStatus("Для партии пока нет испытаний. Форма нового испытания заполнена.");
+            return;
+        }
+
+        TestsGrid.SelectedItem = test;
+        ShowSection("Испытания");
+        SetStatus("Открыто последнее испытание по выбранной партии.");
+    }
 
     private async void LoadCatalogsButton_OnClick(object? sender, RoutedEventArgs e)
     {
@@ -589,8 +672,17 @@ public partial class MainWindow : Window
     private async Task LoadLaboratoryInputsAsync()
     {
         EnsureLoggedIn();
-        LaboratoryLotsGrid.ItemsSource = await _apiClient.GetRawMaterialLotsAsync();
-        SpecificationsGrid.ItemsSource = await _apiClient.GetSpecificationsAsync();
+        _allLaboratoryLots = await _apiClient.GetRawMaterialLotsAsync();
+        _allSpecifications = await _apiClient.GetSpecificationsAsync();
+        _allTests = await _apiClient.GetTestsAsync();
+        _allDecisions = await _apiClient.GetDecisionsAsync();
+        FillLaboratoryDisplayFields();
+        FillLaboratoryStatuses();
+        ApplyLotFilter();
+        SpecificationsGrid.ItemsSource = _allSpecifications;
+        BindLaboratoryHistoryGrids();
+        LaboratoryHistoryTextBox.Text = BuildLaboratoryHistoryText();
+        UpdateSelectedLotCard();
         UpdateHomeDashboard();
         SetStatus("Лабораторные входные данные загружены.");
     }
@@ -603,8 +695,12 @@ public partial class MainWindow : Window
     private async Task LoadTestsAsync()
     {
         EnsureLoggedIn();
-        TestsGrid.ItemsSource = await _apiClient.GetTestsAsync();
+        _allTests = await _apiClient.GetTestsAsync();
+        FillLaboratoryDisplayFields();
+        TestsGrid.ItemsSource = _allTests;
         TestDetailTextBox.Text = string.Empty;
+        BindLaboratoryHistoryGrids();
+        UpdateSelectedLotCard();
         UpdateHomeDashboard();
         SetStatus("Испытания загружены.");
     }
@@ -617,15 +713,18 @@ public partial class MainWindow : Window
     private async Task LoadLaboratoryHistoryAsync()
     {
         EnsureLoggedIn();
-        var tests = await _apiClient.GetTestsAsync();
-        var decisions = await _apiClient.GetDecisionsAsync();
+        if (_allTests.Count == 0)
+        {
+            _allTests = await _apiClient.GetTestsAsync();
+        }
 
-        CompletedTestsGrid.ItemsSource = tests
-            .Where(x => x.CompletedAt != null || x.Status == 3)
-            .OrderByDescending(x => x.CompletedAt ?? x.CreatedAt)
-            .ToList();
-
-        DecisionsGrid.ItemsSource = decisions;
+        _allDecisions = await _apiClient.GetDecisionsAsync();
+        FillLaboratoryDisplayFields();
+        FillLaboratoryStatuses();
+        ApplyLotFilter();
+        BindLaboratoryHistoryGrids();
+        LaboratoryHistoryTextBox.Text = BuildLaboratoryHistoryText();
+        UpdateSelectedLotCard();
         UpdateHomeDashboard();
         SetStatus("История лаборатории загружена.");
     }
@@ -641,6 +740,7 @@ public partial class MainWindow : Window
         {
             var detail = await _apiClient.GetTestAsync(item.Id);
             TestDetailTextBox.Text = FormatTestDetail(detail);
+            FillResultEditors(detail);
         });
     }
 
@@ -649,6 +749,7 @@ public partial class MainWindow : Window
         await ExecuteAsync(async () =>
         {
             EnsureLoggedIn();
+            UpdateLaboratoryFormInfo();
 
             var request = new CreateLaboratoryTestRequest
             {
@@ -664,6 +765,7 @@ public partial class MainWindow : Window
 
             await _apiClient.CreateTestAsync(request);
             await LoadTestsAsync();
+            LaboratoryHistoryTextBox.Text = BuildLaboratoryHistoryText();
             SetStatus("Лабораторное испытание создано.");
         });
     }
@@ -687,12 +789,13 @@ public partial class MainWindow : Window
             var test = RequireSelectedTest();
             var request = new SaveLaboratoryResultsRequest
             {
-                Items = ParseLaboratoryResults(LabResultsTextBox.Text)
+                Items = BuildLaboratoryResults()
             };
 
             await _apiClient.SaveResultsAsync(test.Id, request);
             var detail = await _apiClient.GetTestAsync(test.Id);
             TestDetailTextBox.Text = FormatTestDetail(detail);
+            FillResultEditors(detail);
             SetStatus("Результаты испытания сохранены.");
         });
     }
@@ -709,6 +812,7 @@ public partial class MainWindow : Window
                 ResultSummary = NullIfWhiteSpace(LabResultSummaryTextBox.Text)
             });
             await LoadTestsAsync();
+            LaboratoryHistoryTextBox.Text = BuildLaboratoryHistoryText();
             SetStatus("Испытание завершено.");
         });
     }
@@ -865,27 +969,41 @@ public partial class MainWindow : Window
         return result;
     }
 
-    private List<SaveLaboratoryResultItem> ParseLaboratoryResults(string? input)
+    private List<SaveLaboratoryResultItem> BuildLaboratoryResults()
     {
-        var lines = SplitLines(input);
+        var editors = GetItems<LaboratoryResultEditorItem>(LabResultEditorsGrid.ItemsSource);
         var result = new List<SaveLaboratoryResultItem>();
 
-        foreach (var line in lines)
+        foreach (var item in editors)
         {
-            var parts = line.Split(';');
-            if (parts.Length < 5)
+            var numericValue = ParseOptionalDecimal(item.ActualNumericText);
+            var textValue = NullIfWhiteSpace(item.ActualTextValue);
+            var booleanValue = ParseOptionalBool(item.ActualBooleanText);
+            var actualValueCount = CountNotEmptyValues(numericValue, textValue, booleanValue);
+
+            if (actualValueCount == 0)
             {
-                throw new InvalidOperationException("Результаты должны быть в формате parameterResultId;numeric;text;bool;comment.");
+                continue;
+            }
+
+            if (actualValueCount > 1)
+            {
+                throw new InvalidOperationException($"Для параметра \"{item.ParameterName}\" заполните только один вид фактического значения.");
             }
 
             result.Add(new SaveLaboratoryResultItem
             {
-                ParameterResultId = ParseRequiredInt(parts[0], "ParameterResultId"),
-                ActualNumericValue = ParseOptionalDecimal(parts[1]),
-                ActualTextValue = NullIfWhiteSpace(parts[2]),
-                ActualBooleanValue = ParseOptionalBool(parts[3]),
-                Comment = NullIfWhiteSpace(parts[4])
+                ParameterResultId = item.ParameterResultId,
+                ActualNumericValue = numericValue,
+                ActualTextValue = textValue,
+                ActualBooleanValue = booleanValue,
+                Comment = NullIfWhiteSpace(item.Comment)
             });
+        }
+
+        if (result.Count == 0)
+        {
+            throw new InvalidOperationException("Заполните хотя бы один результат испытания.");
         }
 
         return result;
@@ -989,6 +1107,15 @@ public partial class MainWindow : Window
             "0" => false,
             _ => null
         };
+    }
+
+    private static int CountNotEmptyValues(decimal? numericValue, string? textValue, bool? booleanValue)
+    {
+        var count = 0;
+        if (numericValue is not null) count++;
+        if (!string.IsNullOrWhiteSpace(textValue)) count++;
+        if (booleanValue is not null) count++;
+        return count;
     }
 
     private static string? NullIfWhiteSpace(string? value)
@@ -1206,9 +1333,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        LabSubjectTypeTextBox.Text = "1";
-        LabRawMaterialLotIdTextBox.Text = item.Id.ToString(CultureInfo.InvariantCulture);
-        LabProductionBatchIdTextBox.Text = string.Empty;
+        FillCreateTestFromLot(item);
+        UpdateSelectedLotCard();
     }
 
     private void SpecificationsGrid_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -1220,6 +1346,328 @@ public partial class MainWindow : Window
 
         LabQualitySpecificationIdTextBox.Text = item.Id.ToString(CultureInfo.InvariantCulture);
         LabSubjectTypeTextBox.Text = item.SubjectType.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void FillCreateTestFromLot(RawMaterialLotListItem item)
+    {
+        LabSubjectTypeTextBox.Text = "1";
+        LabRawMaterialLotIdTextBox.Text = item.Id.ToString(CultureInfo.InvariantCulture);
+        LabProductionBatchIdTextBox.Text = string.Empty;
+        LabTestKindTextBox.Text = "Входной контроль";
+
+        var specification = _allSpecifications
+            .Where(x => x.SubjectType == 1 && x.RawMaterialId == item.RawMaterialId && x.IsActive)
+            .OrderByDescending(x => x.VersionNumber)
+            .FirstOrDefault();
+
+        if (specification is not null)
+        {
+            LabQualitySpecificationIdTextBox.Text = specification.Id.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    private void ApplyLotFilter()
+    {
+        var search = (LotSearchTextBox.Text ?? string.Empty).Trim();
+        var statusFilter = GetSelectedComboBoxText(LotStatusFilterComboBox);
+        var items = _allLaboratoryLots.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            items = items.Where(x =>
+                ContainsText(x.InternalLotNumber, search) ||
+                ContainsText(x.SupplierLotNumber, search) ||
+                ContainsText(x.RawMaterialName, search) ||
+                ContainsText(x.SupplierName, search));
+        }
+
+        if (statusFilter == "Без решения")
+        {
+            items = items.Where(x => string.Equals(x.LaboratoryStatusText, "Нет решения", StringComparison.OrdinalIgnoreCase));
+        }
+        else if (statusFilter == "Разрешенные")
+        {
+            items = items.Where(x => string.Equals(x.LaboratoryStatusText, "Разрешена", StringComparison.OrdinalIgnoreCase));
+        }
+        else if (statusFilter == "Заблокированные")
+        {
+            items = items.Where(x => string.Equals(x.LaboratoryStatusText, "Заблокирована", StringComparison.OrdinalIgnoreCase));
+        }
+
+        LaboratoryLotsGrid.ItemsSource = items.ToList();
+        UpdateSelectedLotCard();
+    }
+
+    private void FillLaboratoryStatuses()
+    {
+        foreach (var lot in _allLaboratoryLots)
+        {
+            lot.LaboratoryStatusText = GetLotLaboratoryStatus(lot.Id);
+            lot.LaboratoryStatusMark = lot.LaboratoryStatusText switch
+            {
+                "Разрешена" => "OK",
+                "Заблокирована" => "BLOCK",
+                _ => "WAIT"
+            };
+        }
+    }
+
+    private void FillLaboratoryDisplayFields()
+    {
+        foreach (var test in _allTests)
+        {
+            test.SubjectText = test.SubjectType == 2 ? "Партия" : "Сырье";
+            test.ObjectNumber = test.SubjectType == 2
+                ? test.ProductionBatchNumber ?? "-"
+                : test.RawMaterialLotNumber ?? "-";
+            test.StatusText = GetTestStatusText(test.Status);
+        }
+
+        foreach (var decision in _allDecisions)
+        {
+            decision.SubjectText = decision.SubjectType == 2 ? "Партия" : "Сырье";
+            decision.ObjectNumber = decision.SubjectType == 2
+                ? decision.ProductionBatchNumber ?? "-"
+                : decision.RawMaterialLotNumber ?? "-";
+            decision.DecisionStatusText = GetDecisionStatusText(decision.DecisionStatus);
+        }
+    }
+
+    private void BindLaboratoryHistoryGrids()
+    {
+        CompletedTestsGrid.ItemsSource = _allTests
+            .Where(x => x.CompletedAt != null || x.Status == 3)
+            .OrderByDescending(x => x.CompletedAt ?? x.CreatedAt)
+            .ToList();
+
+        DecisionsGrid.ItemsSource = _allDecisions
+            .OrderByDescending(x => x.DecidedAt)
+            .ToList();
+    }
+
+    private string BuildLaboratoryHistoryText()
+    {
+        var text = new StringBuilder();
+        text.AppendLine("Хронология лаборатории");
+        text.AppendLine();
+
+        foreach (var test in _allTests.OrderByDescending(x => x.CreatedAt).Take(20))
+        {
+            text.AppendLine($"{test.CreatedAt:dd.MM.yyyy HH:mm} | Создано испытание {test.TestNumber}");
+            text.AppendLine($"Объект: {test.SubjectText} {test.ObjectNumber}");
+            text.AppendLine($"Статус: {test.StatusText}");
+
+            if (test.StartedAt is not null)
+            {
+                text.AppendLine($"Старт: {test.StartedAt:dd.MM.yyyy HH:mm}");
+            }
+
+            if (test.CompletedAt is not null)
+            {
+                text.AppendLine($"Завершение: {test.CompletedAt:dd.MM.yyyy HH:mm}");
+            }
+
+            var decision = _allDecisions
+                .FirstOrDefault(x => x.LaboratoryTestId == test.Id && x.IsCurrent);
+
+            if (decision is not null)
+            {
+                text.AppendLine($"Решение: {decision.DecisionStatusText} от {decision.DecidedAt:dd.MM.yyyy HH:mm}");
+            }
+
+            text.AppendLine();
+        }
+
+        return text.ToString();
+    }
+
+    private void FillResultEditors(LaboratoryTestDetail detail)
+    {
+        _currentResultEditors = detail.Results
+            .OrderBy(x => x.SortOrder)
+            .Select(x => new LaboratoryResultEditorItem
+            {
+                ParameterResultId = x.Id,
+                SortOrder = x.SortOrder,
+                ParameterName = x.ParameterName,
+                ValueType = x.ValueType,
+                IsRequired = x.IsRequired,
+                NormText = BuildNormText(x),
+                ActualNumericText = x.ActualNumericValue?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                ActualTextValue = x.ActualTextValue ?? string.Empty,
+                ActualBooleanText = x.ActualBooleanValue is null ? string.Empty : (x.ActualBooleanValue.Value ? "true" : "false"),
+                Comment = x.Comment,
+                CheckText = GetRangeText(x.IsWithinRange)
+            })
+            .ToList();
+
+        LabResultEditorsGrid.ItemsSource = _currentResultEditors;
+    }
+
+    private void UpdateLaboratoryFormInfo()
+    {
+        LabTesterNameTextBox.Text = _currentUser?.FullName ?? string.Empty;
+        LabCreatedAtTextBox.Text = DateTime.Now.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private void LaboratoryLotsGrid_OnLoadingRow(object? sender, DataGridRowEventArgs e)
+    {
+        if (e.Row.DataContext is not RawMaterialLotListItem item)
+        {
+            return;
+        }
+
+        var color = item.LaboratoryStatusText switch
+        {
+            "Разрешена" => "#E8F5E9",
+            "Заблокирована" => "#FFEBEE",
+            _ => "#FFF8E1"
+        };
+
+        e.Row.Background = new SolidColorBrush(Color.Parse(color));
+    }
+
+    private string GetLotLaboratoryStatus(int rawMaterialLotId)
+    {
+        var decision = _allDecisions
+            .FirstOrDefault(x => x.IsCurrent && x.RawMaterialLotId == rawMaterialLotId);
+
+        if (decision is null)
+        {
+            return "Нет решения";
+        }
+
+        return decision.DecisionStatus == 2 ? "Заблокирована" : "Разрешена";
+    }
+
+    private void UpdateSelectedLotCard()
+    {
+        if (LaboratoryLotsGrid.SelectedItem is not RawMaterialLotListItem item)
+        {
+            LotStatusBadgeTextBlock.Text = "Статус не выбран";
+            LotStatusBadgeBorder.Background = new SolidColorBrush(Color.Parse("#D9D9D9"));
+            LotDetailTextBox.Text = "Выберите партию сырья в таблице слева.";
+            return;
+        }
+
+        var tests = _allTests
+            .Where(x => x.RawMaterialLotId == item.Id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToList();
+
+        var currentDecision = _allDecisions
+            .FirstOrDefault(x => x.IsCurrent && x.RawMaterialLotId == item.Id);
+
+        var text = new StringBuilder();
+        text.AppendLine($"Внутренний номер: {item.InternalLotNumber}");
+        text.AppendLine($"Номер поставщика: {item.SupplierLotNumber ?? "-"}");
+        text.AppendLine($"Сырье: {item.RawMaterialName}");
+        text.AppendLine($"Поставщик: {item.SupplierName}");
+        text.AppendLine($"Поступление: {item.ReceivedAt:dd.MM.yyyy HH:mm}");
+        text.AppendLine($"Получено: {item.QuantityReceived.ToString(CultureInfo.InvariantCulture)}");
+        text.AppendLine($"Доступно: {item.QuantityAvailable.ToString(CultureInfo.InvariantCulture)}");
+        text.AppendLine($"Место хранения: {item.StorageLocation}");
+        text.AppendLine($"Лабораторный статус: {item.LaboratoryStatusText}");
+        text.AppendLine();
+        text.AppendLine("Испытания по партии:");
+
+        if (tests.Count == 0)
+        {
+            text.AppendLine("- Испытаний пока нет");
+        }
+        else
+        {
+            foreach (var test in tests)
+            {
+                text.AppendLine($"- {test.TestNumber} | статус {test.Status} | {test.TestKind}");
+            }
+        }
+
+        text.AppendLine();
+        text.AppendLine("Текущее решение:");
+        if (currentDecision is null)
+        {
+            text.AppendLine("- Решение не принято");
+        }
+        else
+        {
+            text.AppendLine($"- Решение: {GetDecisionStatusText(currentDecision.DecisionStatus)}");
+            text.AppendLine($"- Комментарий: {currentDecision.Comment ?? "-"}");
+            text.AppendLine($"- Причина блокировки: {currentDecision.BlockReason ?? "-"}");
+            text.AppendLine($"- Дата: {currentDecision.DecidedAt:dd.MM.yyyy HH:mm}");
+        }
+
+        LotDetailTextBox.Text = text.ToString();
+        ApplyLotBadgeColor(item.LaboratoryStatusText);
+    }
+
+    private void ApplyLotBadgeColor(string laboratoryStatus)
+    {
+        if (string.Equals(laboratoryStatus, "Разрешена", StringComparison.OrdinalIgnoreCase))
+        {
+            LotStatusBadgeTextBlock.Text = "Разрешена";
+            LotStatusBadgeBorder.Background = new SolidColorBrush(Color.Parse("#C8E6C9"));
+            return;
+        }
+
+        if (string.Equals(laboratoryStatus, "Заблокирована", StringComparison.OrdinalIgnoreCase))
+        {
+            LotStatusBadgeTextBlock.Text = "Заблокирована";
+            LotStatusBadgeBorder.Background = new SolidColorBrush(Color.Parse("#FFCDD2"));
+            return;
+        }
+
+        LotStatusBadgeTextBlock.Text = "Нет решения";
+        LotStatusBadgeBorder.Background = new SolidColorBrush(Color.Parse("#FFE082"));
+    }
+
+    private static string GetDecisionStatusText(int decisionStatus)
+    {
+        return decisionStatus == 2 ? "Блокировка" : "Выпуск";
+    }
+
+    private static string GetTestStatusText(int status)
+    {
+        return status switch
+        {
+            1 => "Создано",
+            2 => "В работе",
+            3 => "Завершено",
+            _ => $"Статус {status}"
+        };
+    }
+
+    private static string BuildNormText(LaboratoryTestParameterResultItem item)
+    {
+        if (item.ValueType == 1)
+        {
+            var min = item.MinNumericValue?.ToString(CultureInfo.InvariantCulture) ?? "-";
+            var max = item.MaxNumericValue?.ToString(CultureInfo.InvariantCulture) ?? "-";
+            var unit = string.IsNullOrWhiteSpace(item.Unit) ? string.Empty : $" {item.Unit}";
+            return $"{min} .. {max}{unit}";
+        }
+
+        if (item.ValueType == 2)
+        {
+            return item.TargetTextValue ?? "-";
+        }
+
+        if (item.ValueType == 3)
+        {
+            return item.TargetBooleanValue is true ? "true" : item.TargetBooleanValue is false ? "false" : "-";
+        }
+
+        return "-";
+    }
+
+    private static string GetSelectedComboBoxText(ComboBox comboBox)
+    {
+        if (comboBox.SelectedItem is ComboBoxItem item)
+        {
+            return item.Content?.ToString() ?? string.Empty;
+        }
+
+        return comboBox.SelectedItem?.ToString() ?? string.Empty;
     }
 
     private static string FormatTestDetail(LaboratoryTestDetail detail)

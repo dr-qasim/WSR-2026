@@ -54,6 +54,7 @@ public sealed class DesktopApiClient
     }
 
     public Task<List<ProductListItem>> GetProductsAsync() => GetAsync<List<ProductListItem>>("api/catalog/products");
+    public Task<ProductDetail> GetProductAsync(int id) => GetAsync<ProductDetail>($"api/catalog/products/{id}");
     public Task<List<RawMaterialListItem>> GetRawMaterialsAsync() => GetAsync<List<RawMaterialListItem>>("api/catalog/raw-materials");
     public Task<List<RawMaterialLotListItem>> GetRawMaterialLotsAsync() => GetAsync<List<RawMaterialLotListItem>>("api/catalog/raw-material-lots");
     public Task<List<ProductionLineItem>> GetProductionLinesAsync() => GetAsync<List<ProductionLineItem>>("api/catalog/production-lines");

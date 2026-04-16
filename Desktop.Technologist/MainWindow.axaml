@@ -176,6 +176,7 @@
                     <Grid x:Name="ProductsSection" IsVisible="False" RowDefinitions="Auto,*" ColumnDefinitions="*,*,*" ColumnSpacing="12" RowSpacing="12">
                         <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="12">
                             <Button Click="LoadCatalogsButton_OnClick" Content="Загрузить данные" />
+                            <Button Click="OpenProductCardButton_OnClick" Content="Карточка продукта" />
                         </StackPanel>
 
                         <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
@@ -206,6 +207,7 @@
                         <Grid RowDefinitions="Auto,*,Auto" Grid.Column="0" RowSpacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <Button Click="LoadRecipesButton_OnClick" Content="Загрузить рецептуры" />
+                                <Button Click="OpenRecipeCardButton_OnClick" Content="Карточка рецептуры" />
                                 <Button Click="ApproveRecipeButton_OnClick" Content="Утвердить выбранную" />
                             </StackPanel>
 
@@ -246,6 +248,7 @@
                         <Grid RowDefinitions="Auto,*,Auto" Grid.Column="0" RowSpacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <Button Click="LoadTechnologyCardsButton_OnClick" Content="Загрузить техкарты" />
+                                <Button Click="OpenTechnologyCardButton_OnClick" Content="Карточка техкарты" />
                                 <Button Click="ApproveTechnologyCardButton_OnClick" Content="Утвердить выбранную" />
                             </StackPanel>
 

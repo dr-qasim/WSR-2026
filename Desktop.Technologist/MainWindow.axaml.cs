@@ -102,6 +102,18 @@ public partial class MainWindow : Window
         await ExecuteAsync(LoadCatalogsAsync);
     }
 
+    private async void OpenProductCardButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        await ExecuteAsync(async () =>
+        {
+            EnsureLoggedIn();
+            var item = RequireSelectedProduct();
+            var detail = await _apiClient.GetProductAsync(item.Id);
+            var window = new ProductCardWindow(detail);
+            await window.ShowDialog(this);
+        });
+    }
+
     private async Task LoadCatalogsAsync()
     {
         EnsureLoggedIn();
@@ -116,6 +128,18 @@ public partial class MainWindow : Window
     private async void LoadRecipesButton_OnClick(object? sender, RoutedEventArgs e)
     {
         await ExecuteAsync(LoadRecipesAsync);
+    }
+
+    private async void OpenRecipeCardButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        await ExecuteAsync(async () =>
+        {
+            EnsureLoggedIn();
+            var item = RequireSelectedRecipe();
+            var detail = await _apiClient.GetRecipeAsync(item.Id);
+            var window = new RecipeCardWindow(detail);
+            await window.ShowDialog(this);
+        });
     }
 
     private async Task LoadRecipesAsync()
@@ -178,6 +202,18 @@ public partial class MainWindow : Window
     private async void LoadTechnologyCardsButton_OnClick(object? sender, RoutedEventArgs e)
     {
         await ExecuteAsync(LoadTechnologyCardsAsync);
+    }
+
+    private async void OpenTechnologyCardButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        await ExecuteAsync(async () =>
+        {
+            EnsureLoggedIn();
+            var item = RequireSelectedTechnologyCard();
+            var detail = await _apiClient.GetTechnologyCardAsync(item.Id);
+            var window = new TechnologyCardWindow(detail);
+            await window.ShowDialog(this);
+        });
     }
 
     private async Task LoadTechnologyCardsAsync()
@@ -1305,6 +1341,12 @@ public partial class MainWindow : Window
     {
         return RecipesGrid.SelectedItem as RecipeListItem
                ?? throw new InvalidOperationException("Выберите рецептуру в таблице.");
+    }
+
+    private ProductListItem RequireSelectedProduct()
+    {
+        return ProductsGrid.SelectedItem as ProductListItem
+               ?? throw new InvalidOperationException("Выберите продукт в таблице.");
     }
 
     private TechnologyCardListItem RequireSelectedTechnologyCard()

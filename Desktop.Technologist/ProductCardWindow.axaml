@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="PlantProduction.Desktop.ProductCardWindow"
+        Width="1000"
+        Height="720"
+        MinWidth="860"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        Title="Карточка продукта">
+    <Grid RowDefinitions="Auto,220,*" Margin="12" RowSpacing="12">
+        <TextBlock x:Name="TitleTextBlock"
+                   FontSize="24"
+                   FontWeight="Bold"
+                   Text="Карточка продукта" />
+
+        <TextBox x:Name="HeaderTextBox"
+                 Grid.Row="1"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap" />
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Рецептуры продукта" />
+                <DataGrid x:Name="RecipesGrid"
+                          AutoGenerateColumns="True" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="8">
+                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Технологические карты" />
+                <DataGrid x:Name="TechnologyCardsGrid"
+                          AutoGenerateColumns="True" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

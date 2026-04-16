@@ -240,6 +240,21 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
             }
         }
 
+        var duplicateExists = await dbContext.LaboratoryTests
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.SubjectType == request.SubjectType &&
+                x.QualitySpecificationId == request.QualitySpecificationId &&
+                x.Status != 3 &&
+                ((request.RawMaterialLotId != null && x.RawMaterialLotId == request.RawMaterialLotId) ||
+                 (request.ProductionBatchId != null && x.ProductionBatchId == request.ProductionBatchId)),
+                cancellationToken);
+
+        if (duplicateExists)
+        {
+            return BadRequest(ApiResponse.Fail("Для выбранного объекта уже есть незавершенное испытание по этой спецификации."));
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
@@ -553,6 +568,7 @@ public sealed class LaboratoryController(PlantProductionScaffoldDbContext dbCont
                 if (lot is not null)
                 {
                     lot.LastLaboratoryDecisionAt = decidedAt;
+                    lot.Status = request.DecisionStatus == 2 ? 3 : 2;
                 }
             }
 
