@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PlantProduction.Desktop.Laboratory.LoginWindow"
+        Width="520"
+        Height="340"
+        MinWidth="480"
+        MinHeight="320"
+        WindowStartupLocation="CenterScreen"
+        Title="Вход в систему">
+  <Border Padding="24">
+    <StackPanel Spacing="14">
+      <TextBlock FontSize="28"
+                 FontWeight="Bold"
+                 Text="Лаборатория качества" />
+
+      <TextBlock Text="Логин" />
+      <TextBox x:Name="LoginTextBox"
+               Text="lab1" />
+
+      <TextBlock Text="Пароль" />
+      <TextBox x:Name="PasswordTextBox"
+               Text="12345" />
+
+      <Button Content="Войти"
+              Click="LoginButton_OnClick" />
+
+      <Border Padding="10"
+              Background="#FFF8E1"
+              CornerRadius="6">
+        <TextBlock x:Name="StatusTextBlock"
+                   TextWrapping="Wrap"
+                   Text="" />
+      </Border>
+    </StackPanel>
+  </Border>
+</Window>

@@ -1,9 +1,8 @@
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
-namespace PlantProduction.Desktop;
+namespace PlantProduction.Desktop.Laboratory;
 
 public sealed class DesktopApiClient
 {
@@ -19,7 +18,7 @@ public sealed class DesktopApiClient
     public void SetBaseUrl(string baseUrl)
     {
         BaseUrl = baseUrl.Trim().TrimEnd('/') + "/";
-        var token = Token;
+        var savedToken = Token;
 
         _httpClient.Dispose();
         _httpClient = new HttpClient
@@ -27,9 +26,9 @@ public sealed class DesktopApiClient
             BaseAddress = new Uri(BaseUrl)
         };
 
-        if (!string.IsNullOrWhiteSpace(token))
+        if (!string.IsNullOrWhiteSpace(savedToken))
         {
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", savedToken);
         }
     }
 
@@ -53,51 +52,13 @@ public sealed class DesktopApiClient
         return response;
     }
 
-    public Task<List<ProductListItem>> GetProductsAsync() => GetAsync<List<ProductListItem>>("api/catalog/products");
-    public Task<List<RawMaterialListItem>> GetRawMaterialsAsync() => GetAsync<List<RawMaterialListItem>>("api/catalog/raw-materials");
     public Task<List<RawMaterialLotListItem>> GetRawMaterialLotsAsync() => GetAsync<List<RawMaterialLotListItem>>("api/catalog/raw-material-lots");
-    public Task<List<ProductionLineItem>> GetProductionLinesAsync() => GetAsync<List<ProductionLineItem>>("api/catalog/production-lines");
-
-    public Task<List<RecipeListItem>> GetRecipesAsync() => GetAsync<List<RecipeListItem>>("api/recipes");
-    public Task<RecipeDetail> GetRecipeAsync(int id) => GetAsync<RecipeDetail>($"api/recipes/{id}");
-    public Task CreateRecipeAsync(CreateRecipeRequest request) => PostWithoutDataAsync("api/recipes", request);
-    public Task ApproveRecipeAsync(int id, int approvedByUserId, string? comment) => PostWithoutDataAsync($"api/recipes/{id}/approve", new ApproveRecipeRequest
-    {
-        ApprovedByUserId = approvedByUserId,
-        Comment = comment
-    });
-
-    public Task<List<TechnologyCardListItem>> GetTechnologyCardsAsync() => GetAsync<List<TechnologyCardListItem>>("api/technology-cards");
-    public Task<TechnologyCardDetail> GetTechnologyCardAsync(int id) => GetAsync<TechnologyCardDetail>($"api/technology-cards/{id}");
-    public Task CreateTechnologyCardAsync(CreateTechnologyCardRequest request) => PostWithoutDataAsync("api/technology-cards", request);
-    public Task ApproveTechnologyCardAsync(int id, int approvedByUserId, string? comment) => PostWithoutDataAsync($"api/technology-cards/{id}/approve", new ApproveTechnologyCardRequest
-    {
-        ApprovedByUserId = approvedByUserId,
-        Comment = comment
-    });
-
-    public Task<List<ProductionOrderItem>> GetOrdersAsync() => GetAsync<List<ProductionOrderItem>>("api/production/orders");
-    public Task CreateOrderAsync(CreateProductionOrderRequest request) => PostWithoutDataAsync("api/production/orders", request);
-    public Task<List<ProductionBatchItem>> GetBatchesAsync() => GetAsync<List<ProductionBatchItem>>("api/production/batches");
-    public Task CreateBatchAsync(CreateProductionBatchRequest request) => PostWithoutDataAsync("api/production/batches", request);
-    public Task<List<BatchStepRunItem>> GetBatchStepsAsync(int batchId) => GetAsync<List<BatchStepRunItem>>($"api/production/batches/{batchId}/steps");
-    public Task StartBatchAsync(int batchId) => PostWithoutDataAsync($"api/production/batches/{batchId}/start", new { });
-    public Task CompleteBatchAsync(int batchId) => PostWithoutDataAsync($"api/production/batches/{batchId}/complete", new { });
-    public Task StartStepAsync(int stepRunId, StartStepRunRequest request) => PostWithoutDataAsync($"api/production/step-runs/{stepRunId}/start", request);
-    public Task CompleteStepAsync(int stepRunId, CompleteStepRunRequest request) => PostWithoutDataAsync($"api/production/step-runs/{stepRunId}/complete", request);
-    public Task<MeasurementResponse> AddMeasurementAsync(int stepRunId, AddMeasurementRequest request) => PostAsync<AddMeasurementRequest, MeasurementResponse>($"api/production/step-runs/{stepRunId}/measurements", request);
-    public Task CreateDeviationAsync(CreateDeviationRequest request) => PostWithoutDataAsync("api/production/deviations", request);
-    public Task<List<DeviationItem>> GetDeviationsAsync() => GetAsync<List<DeviationItem>>("api/production/deviations");
-
     public Task<List<QualitySpecificationItem>> GetSpecificationsAsync() => GetAsync<List<QualitySpecificationItem>>("api/laboratory/specifications");
     public Task<List<LaboratoryTestItem>> GetTestsAsync() => GetAsync<List<LaboratoryTestItem>>("api/laboratory/tests");
     public Task<List<QualityDecisionItem>> GetDecisionsAsync() => GetAsync<List<QualityDecisionItem>>("api/laboratory/decisions");
     public Task<LaboratoryTestDetail> GetTestAsync(int id) => GetAsync<LaboratoryTestDetail>($"api/laboratory/tests/{id}");
     public Task CreateTestAsync(CreateLaboratoryTestRequest request) => PostWithoutDataAsync("api/laboratory/tests", request);
-    public Task StartTestAsync(int testId, int testerUserId) => PostWithoutDataAsync($"api/laboratory/tests/{testId}/start", new StartLaboratoryTestRequest
-    {
-        TesterUserId = testerUserId
-    });
+    public Task StartTestAsync(int testId, int testerUserId) => PostWithoutDataAsync($"api/laboratory/tests/{testId}/start", new StartLaboratoryTestRequest { TesterUserId = testerUserId });
     public Task SaveResultsAsync(int testId, SaveLaboratoryResultsRequest request) => PostWithoutDataAsync($"api/laboratory/tests/{testId}/results", request);
     public Task CompleteTestAsync(int testId, CompleteLaboratoryTestRequest request) => PostWithoutDataAsync($"api/laboratory/tests/{testId}/complete", request);
     public Task CreateDecisionAsync(CreateQualityDecisionRequest request) => PostWithoutDataAsync("api/laboratory/decisions", request);
